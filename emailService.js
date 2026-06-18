@@ -1,28 +1,55 @@
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 
-// Email transporter configuration using environment variables
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER || 'amoostore5@gmail.com',
-    pass: process.env.EMAIL_PASSWORD || 'gslm kpik cilc btle'
-  },
-  connectionTimeout: 15000,
-  socketTimeout: 15000
-});
+// Brevo API configuration
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+const SENDER_EMAIL = process.env.EMAIL_USER || 'amoostore5@gmail.com';
+const SENDER_NAME = 'Amoo Store';
 
-// Test connection (non-blocking)
+// Test Brevo connection (non-blocking)
 setTimeout(() => {
-  transporter.verify((error, success) => {
-    if (error) {
-      console.error('❌ Email service error:', error.message);
-    } else {
-      console.log('✅ Email service ready - using:', process.env.EMAIL_USER || 'amoostore5@gmail.com');
-    }
-  });
+  if (!BREVO_API_KEY) {
+    console.warn('⚠️  BREVO_API_KEY not configured. Please set it in your environment variables.');
+  } else {
+    console.log('✅ Email service ready - using Brevo API with:', SENDER_EMAIL);
+  }
 }, 5000);
+
+// Helper function to send emails via Brevo
+async function sendEmailViaBrevo(to, subject, html, text, replyTo = null) {
+  try {
+    if (!BREVO_API_KEY) {
+      throw new Error('BREVO_API_KEY not configured');
+    }
+
+    const payload = {
+      sender: {
+        name: SENDER_NAME,
+        email: SENDER_EMAIL
+      },
+      to: Array.isArray(to) ? to.map(email => ({ email })) : [{ email: to }],
+      subject: subject,
+      htmlContent: html,
+      textContent: text
+    };
+
+    if (replyTo) {
+      payload.replyTo = { email: replyTo, name: 'Customer' };
+    }
+
+    const response = await axios.post(BREVO_API_URL, payload, {
+      headers: {
+        'api-key': BREVO_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('❌ Brevo API Error:', error.response?.data || error.message);
+    throw error;
+  }
+}
 
 // Email template for user registration
 function getUserRegistrationEmailTemplate(userName, userEmail) {
@@ -257,13 +284,12 @@ function getAdminRegistrationEmailTemplate(adminName, adminEmail) {
 async function sendUserRegistrationEmail(userName, userEmail) {
   try {
     const emailTemplate = getUserRegistrationEmailTemplate(userName, userEmail);
-    const result = await transporter.sendMail({
-      from: process.env.EMAIL_USER || 'amoostore5@gmail.com',
-      to: userEmail,
-      subject: emailTemplate.subject,
-      html: emailTemplate.html,
-      text: emailTemplate.text
-    });
+    const result = await sendEmailViaBrevo(
+      userEmail,
+      emailTemplate.subject,
+      emailTemplate.html,
+      emailTemplate.text
+    );
     console.log('✅ Registration email sent to:', userEmail);
     return result;
   } catch (error) {
@@ -276,13 +302,12 @@ async function sendUserRegistrationEmail(userName, userEmail) {
 async function sendOrderConfirmationEmail(customerName, customerEmail, orderId, items, total, deliveryFee, subtotal) {
   try {
     const emailTemplate = getOrderConfirmationEmailTemplate(customerName, customerEmail, orderId, items, total, deliveryFee, subtotal);
-    const result = await transporter.sendMail({
-      from: process.env.EMAIL_USER || 'amoostore5@gmail.com',
-      to: customerEmail,
-      subject: emailTemplate.subject,
-      html: emailTemplate.html,
-      text: emailTemplate.text
-    });
+    const result = await sendEmailViaBrevo(
+      customerEmail,
+      emailTemplate.subject,
+      emailTemplate.html,
+      emailTemplate.text
+    );
     console.log('✅ Order confirmation email sent to:', customerEmail);
     return result;
   } catch (error) {
@@ -295,13 +320,12 @@ async function sendOrderConfirmationEmail(customerName, customerEmail, orderId, 
 async function sendOrderStatusUpdateEmail(customerName, customerEmail, orderId, status, items) {
   try {
     const emailTemplate = getOrderStatusUpdateEmailTemplate(customerName, orderId, status, items);
-    const result = await transporter.sendMail({
-      from: process.env.EMAIL_USER || 'amoostore5@gmail.com',
-      to: customerEmail,
-      subject: emailTemplate.subject,
-      html: emailTemplate.html,
-      text: emailTemplate.text
-    });
+    const result = await sendEmailViaBrevo(
+      customerEmail,
+      emailTemplate.subject,
+      emailTemplate.html,
+      emailTemplate.text
+    );
     console.log('✅ Order status update email sent to:', customerEmail);
     return result;
   } catch (error) {
@@ -314,13 +338,12 @@ async function sendOrderStatusUpdateEmail(customerName, customerEmail, orderId, 
 async function sendAdminRegistrationEmail(adminName, adminEmail) {
   try {
     const emailTemplate = getAdminRegistrationEmailTemplate(adminName, adminEmail);
-    const result = await transporter.sendMail({
-      from: process.env.EMAIL_USER || 'amoostore5@gmail.com',
-      to: adminEmail,
-      subject: emailTemplate.subject,
-      html: emailTemplate.html,
-      text: emailTemplate.text
-    });
+    const result = await sendEmailViaBrevo(
+      adminEmail,
+      emailTemplate.subject,
+      emailTemplate.html,
+      emailTemplate.text
+    );
     console.log('✅ Admin registration email sent to:', adminEmail);
     return result;
   } catch (error) {
@@ -363,14 +386,13 @@ function getCustomerMessageEmailTemplate(senderName, senderEmail, subject, messa
 async function sendCustomerMessageEmail(senderName, senderEmail, subject, message, recipientEmail) {
   try {
     const emailTemplate = getCustomerMessageEmailTemplate(senderName, senderEmail, subject, message);
-    const result = await transporter.sendMail({
-      from: process.env.EMAIL_USER || 'amoostore5@gmail.com',
-      to: recipientEmail,
-      replyTo: senderEmail,
-      subject: emailTemplate.subject,
-      html: emailTemplate.html,
-      text: emailTemplate.text
-    });
+    const result = await sendEmailViaBrevo(
+      recipientEmail,
+      emailTemplate.subject,
+      emailTemplate.html,
+      emailTemplate.text,
+      senderEmail
+    );
     console.log('✅ Customer message email sent to:', recipientEmail);
     return result;
   } catch (error) {

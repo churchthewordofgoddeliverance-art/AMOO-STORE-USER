@@ -708,12 +708,17 @@ async function loadCustomers() {
     displayCustomersList(users);
   } catch (error) {
     console.error('Error loading customers:', error);
-    document.getElementById('customers-list').innerHTML = '<p>Error loading customers</p>';
+    const customersListEl = document.getElementById('customers-list');
+    const messagesCustomersListEl = document.getElementById('messages-customers-list');
+    if (customersListEl) customersListEl.innerHTML = '<p>Error loading customers</p>';
+    if (messagesCustomersListEl) messagesCustomersListEl.innerHTML = '<p>Error loading customers</p>';
   }
 }
 
 function displayCustomersList(users) {
-  const list = document.getElementById('customers-list');
+  const customersList = document.getElementById('customers-list');
+  const messagesCustomersList = document.getElementById('messages-customers-list');
+  const list = customersList || messagesCustomersList;
   
   if (!users || users.length === 0) {
     list.innerHTML = '<p style="color: #999; text-align: center;">No registered customers</p>';
@@ -731,7 +736,7 @@ function displayCustomersList(users) {
   }
 
   // Display customers with name, email, and phone
-  list.innerHTML = `
+  const htmlContent = `
     <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
       <strong style="color: #333;">👥 Total Customers: ${users.length}</strong>
     </div>
@@ -747,6 +752,10 @@ function displayCustomersList(users) {
       )
       .join('')}
   `;
+
+  // Update both lists if they exist
+  if (customersList) customersList.innerHTML = htmlContent;
+  if (messagesCustomersList) messagesCustomersList.innerHTML = htmlContent;
 
   // Store emails for message sending
   window.customerEmails = validEmails;

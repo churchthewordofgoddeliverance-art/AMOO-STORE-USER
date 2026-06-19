@@ -72,14 +72,14 @@
         </div>
 
         <div class="checkout-payment-card">
-          <div class="section-subtitle">Payment</div>
+          <div class="section-subtitle">✅ Payment Details</div>
           <form class="checkout-form" data-checkout-form>
             <div class="payment-methods">
               <label class="payment-option">
                 <input type="radio" name="payment-method" value="transfer" checked />
                 <div>
-                  <strong>Bank transfer</strong>
-                  <p>Transfer to our account and send proof after checkout.</p>
+                  <strong>🏦 Bank Transfer</strong>
+                  <p>Transfer to our account and send proof via email after checkout.</p>
                 </div>
               </label>
             </div>
@@ -88,7 +88,7 @@
 
             <div class="payment-fields">
               <label>
-                <span>Country</span>
+                <span>🌍 Country</span>
                 <select name="country" id="checkout-country-select">
                   <option value="">Select country</option>
                   <option>Afghanistan</option>
@@ -119,20 +119,20 @@
                 </select>
               </label>
               <label>
-                <span>Phone or WhatsApp</span>
-                <input type="text" name="phone" id="checkout-phone" placeholder="Enter your phone number" required />
+                <span>📱 Phone or WhatsApp</span>
+                <input type="text" name="phone" id="checkout-phone" placeholder="+234 (or your country code)" required />
               </label>
               <label>
-                <span>Delivery address</span>
-                <input type="text" name="address" placeholder="Enter your delivery address" required />
+                <span>📍 Delivery Address</span>
+                <input type="text" name="address" placeholder="Enter your street address" required />
               </label>
             </div>
 
             <div class="checkout-actions">
-              <button class="button button-primary" type="submit">Confirm order</button>
-              <a class="button button-secondary" href="cart.html">Back to cart</a>
+              <button class="button button-primary" type="submit">✓ Confirm Order</button>
+              <a class="button button-secondary" href="cart.html">← Back to Cart</a>
             </div>
-            <p class="payment-note">We accept bank transfer and card payment. After confirming your order, you will receive instructions to complete your payment.</p>
+            <p class="payment-note">💡 We accept bank transfer and card payments. After confirming your order, you'll receive payment instructions via email.</p>
             <div class="checkout-message" data-checkout-message></div>
             <div class="payment-instructions" data-payment-instructions hidden></div>
           </form>

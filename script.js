@@ -530,6 +530,12 @@ function updateCartTotals() {
 
   cartCountNodes.forEach((node) => {
     node.textContent = String(quantity);
+    // Show red badge if cart has items, hide if empty
+    if (quantity > 0) {
+      node.classList.add('active');
+    } else {
+      node.classList.remove('active');
+    }
   });
 
   if (cartSubtotal) {
@@ -1068,7 +1074,10 @@ Please confirm my order. I will proceed with bank transfer payment.`;
           cartState.length = 0;
           saveCart();
           if (cartCountNodes.length) {
-            cartCountNodes.forEach((node) => { node.textContent = '0'; });
+            cartCountNodes.forEach((node) => { 
+              node.textContent = '0';
+              node.classList.remove('active'); // Hide red badge
+            });
           }
           if (cartSubtotal) { cartSubtotal.textContent = currency.format(0); }
           if (cartDelivery) { cartDelivery.textContent = currency.format(0); }

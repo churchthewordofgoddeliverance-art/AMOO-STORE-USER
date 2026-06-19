@@ -219,12 +219,37 @@ input {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(135deg, rgba(224, 179, 108, 0.18), rgba(121, 209, 195, 0.14));
+  position: relative;
 }
 
 .nav-cta:hover,
 .nav-cta:focus-visible {
   color: #111;
   background: linear-gradient(135deg, var(--accent), #f1cf8b);
+}
+
+/* Cart Count Badge */
+.cart-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  margin-left: 6px;
+  background: #ff4444;
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0;
+  transform: scale(0);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.cart-count.active {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .account-button {

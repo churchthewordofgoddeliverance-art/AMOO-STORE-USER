@@ -12,6 +12,12 @@
   status = 200
   force = true
 
+# Admin panel routes to admin/admin.html
+[[redirects]]
+  from = "/admin"
+  to = "/admin/admin.html"
+  status = 200
+
 # Redirect non-existent files to index.html for SPA routing
 [[redirects]]
   from = "/*"

@@ -977,24 +977,25 @@ app.post('/api/orders/:orderId/sync-status', async (req, res) => {
 // Send customer message endpoint
 app.post('/api/send-message', async (req, res) => {
   try {
-    const { emails, subject, message, senderName, senderEmail } = req.body;
+    const { emails, phones, subject, message, senderName, senderEmail } = req.body;
 
     // Validate input
-    if (!emails || !Array.isArray(emails) || emails.length === 0) {
-      return res.status(400).json({ error: 'At least one email is required' });
+    if ((!emails || emails.length === 0) && (!phones || phones.length === 0)) {
+      return res.status(400).json({ error: 'At least one email or phone number is required' });
     }
     if (!subject || !message || !senderName || !senderEmail) {
       return res.status(400).json({ error: 'Subject, message, sender name, and sender email are required' });
     }
 
-    console.log(`📧 Sending message to ${emails.length} recipients...`);
+    console.log(`📧 Sending message to ${emails?.length || 0} emails and ${phones?.length || 0} phone numbers...`);
 
     // Create message record
     const messageRecord = {
       id: Date.now(),
       senderName,
       senderEmail,
-      emails: emails,
+      emails: emails || [],
+      phones: phones || [],
       subject,
       message,
       createdAt: new Date().toISOString(),
@@ -1003,43 +1004,63 @@ app.post('/api/send-message', async (req, res) => {
 
     let sentCount = 0;
     let failedCount = 0;
+    let emailsSent = 0;
+    let smsSent = 0;
 
     // Send email to each recipient using Brevo
-    const emailTemplate = {
-      subject: subject,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-          <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <h2 style="color: #2c3e50; margin-bottom: 20px;">${subject}</h2>
-            
-            <div style="background-color: #f0f0f0; padding: 20px; border-radius: 5px; margin: 20px 0; white-space: pre-wrap; line-height: 1.6;">
-              ${message}
+    if (emails && emails.length > 0) {
+      const emailTemplate = {
+        subject: subject,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+            <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              <h2 style="color: #2c3e50; margin-bottom: 20px;">${subject}</h2>
+              
+              <div style="background-color: #f0f0f0; padding: 20px; border-radius: 5px; margin: 20px 0; white-space: pre-wrap; line-height: 1.6;">
+                ${message}
+              </div>
+              
+              <p style="color: #666; font-size: 14px; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+                <strong>From:</strong> ${senderName} (${senderEmail})<br/>
+                <strong>Sent on:</strong> ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
+              </p>
+              
+              <p style="color: #999; font-size: 12px; margin-top: 30px;">
+                This is a message from Amoo Store. If you have any questions, please reply to this email.
+              </p>
             </div>
-            
-            <p style="color: #666; font-size: 14px; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
-              <strong>From:</strong> ${senderName} (${senderEmail})<br/>
-              <strong>Sent on:</strong> ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
-            </p>
-            
-            <p style="color: #999; font-size: 12px; margin-top: 30px;">
-              This is a message from Amoo Store. If you have any questions, please reply to this email.
-            </p>
           </div>
-        </div>
-      `,
-      text: `${subject}\n\n${message}\n\nFrom: ${senderName} (${senderEmail})\nSent on: ${new Date().toLocaleDateString()}\n\nThis is a message from Amoo Store.`
-    };
+        `,
+        text: `${subject}\n\n${message}\n\nFrom: ${senderName} (${senderEmail})\nSent on: ${new Date().toLocaleDateString()}\n\nThis is a message from Amoo Store.`
+      };
 
-    // Send to each recipient
-    for (const recipientEmail of emails) {
-      try {
-        const { sendEmailViaBrevo } = require('./emailService.js');
-        await sendEmailViaBrevo(recipientEmail, emailTemplate.subject, emailTemplate.html, emailTemplate.text, senderEmail);
-        sentCount++;
-        console.log(`✅ Email sent to: ${recipientEmail}`);
-      } catch (error) {
-        failedCount++;
-        console.error(`❌ Failed to send email to ${recipientEmail}:`, error.message);
+      // Send to each email recipient
+      for (const recipientEmail of emails) {
+        try {
+          const { sendEmailViaBrevo } = require('./emailService.js');
+          await sendEmailViaBrevo(recipientEmail, emailTemplate.subject, emailTemplate.html, emailTemplate.text, senderEmail);
+          emailsSent++;
+          sentCount++;
+          console.log(`✅ Email sent to: ${recipientEmail}`);
+        } catch (error) {
+          failedCount++;
+          console.error(`❌ Failed to send email to ${recipientEmail}:`, error.message);
+        }
+      }
+    }
+
+    // Send SMS to each phone recipient
+    if (phones && phones.length > 0) {
+      for (const phoneNumber of phones) {
+        try {
+          await sendOrderStatusSMS(phoneNumber, 'Valued Customer', message, subject);
+          smsSent++;
+          sentCount++;
+          console.log(`✅ SMS sent to: ${phoneNumber}`);
+        } catch (error) {
+          failedCount++;
+          console.error(`❌ Failed to send SMS to ${phoneNumber}:`, error.message);
+        }
       }
     }
 
@@ -1050,19 +1071,22 @@ app.post('/api/send-message', async (req, res) => {
         .insert([{
           sender_email: senderEmail,
           sender_name: senderName,
-          recipient_emails: emails,
+          recipient_emails: emails || [],
+          recipient_phones: phones || [],
           subject: subject,
           message_content: message,
           status: sentCount > 0 ? 'sent' : 'failed',
-          recipient_count: emails.length,
+          recipient_count: (emails?.length || 0) + (phones?.length || 0),
           sent_count: sentCount,
-          failed_count: failedCount
+          failed_count: failedCount,
+          emails_sent: emailsSent,
+          sms_sent: smsSent
         }]);
 
       if (error) {
         console.warn('⚠️ Supabase save failed:', error.message);
       } else {
-        console.log(`✅ Message saved to Supabase (${sentCount} sent, ${failedCount} failed)`);
+        console.log(`✅ Message saved to Supabase (${emailsSent} emails, ${smsSent} SMS)`);
       }
     } catch (supabaseError) {
       console.warn('⚠️ Supabase error:', supabaseError.message);
@@ -1077,14 +1101,19 @@ app.post('/api/send-message', async (req, res) => {
     }
     messageRecord.sentCount = sentCount;
     messageRecord.failedCount = failedCount;
+    messageRecord.emailsSent = emailsSent;
+    messageRecord.smsSent = smsSent;
     messages.push(messageRecord);
+    
     res.json({ 
       success: true, 
-      message: `Message sent to ${sentCount} recipient(s)${failedCount > 0 ? `, ${failedCount} failed` : ''}`,
+      message: `Message sent: ${emailsSent} emails, ${smsSent} SMS${failedCount > 0 ? `, ${failedCount} failed` : ''}`,
       messageId: messageRecord.id,
       sentCount,
       failedCount,
-      totalRecipients: emails.length
+      emailsSent,
+      smsSent,
+      totalRecipients: (emails?.length || 0) + (phones?.length || 0)
     });
 
   } catch (error) {

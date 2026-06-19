@@ -546,15 +546,15 @@ app.post('/api/register', async (req, res) => {
     sendUserRegistrationEmail(newUser.name, newUser.email)
       .catch(error => console.error('Email sending error (non-critical):', error.message));
     
-    // Send registration SMS
-    sendRegistrationSMS(newUser.phone, newUser.name)
-      .catch(error => console.error('SMS sending error (non-critical):', error.message));
+    // Send registration SMS (DISABLED - Need Nigerian Twilio number)
+    // sendRegistrationSMS(newUser.phone, newUser.name)
+    //   .catch(error => console.error('SMS sending error (non-critical):', error.message));
     
-    // Send registration WhatsApp
-    if (newUser.phone) {
-      sendRegistrationWhatsApp(newUser.phone, newUser.name)
-        .catch(error => console.error('WhatsApp sending error (non-critical):', error.message));
-    }
+    // Send registration WhatsApp (DISABLED - Need WhatsApp Business setup)
+    // if (newUser.phone) {
+    //   sendRegistrationWhatsApp(newUser.phone, newUser.name)
+    //     .catch(error => console.error('WhatsApp sending error (non-critical):', error.message));
+    // }
     
     res.status(201).json({ success: true, message: 'User registered successfully', userId: newUser.id });
   } else {
@@ -765,17 +765,17 @@ app.post('/api/orders', async (req, res) => {
       newOrder.subtotal || 0
     ).catch(error => console.error('Email sending error (non-critical):', error.message));
     
-    // Send order confirmation SMS
-    if (phone) {
-      sendOrderConfirmationSMS(phone, customerName, newOrder.id, total)
-        .catch(error => console.error('SMS sending error (non-critical):', error.message));
-    }
+    // Send order confirmation SMS (DISABLED - Need Nigerian Twilio number)
+    // if (phone) {
+    //   sendOrderConfirmationSMS(phone, customerName, newOrder.id, total)
+    //     .catch(error => console.error('SMS sending error (non-critical):', error.message));
+    // }
     
-    // Send order confirmation WhatsApp
-    if (phone) {
-      sendOrderConfirmationWhatsApp(phone, customerName, newOrder.id, total, newOrder.address)
-        .catch(error => console.error('WhatsApp sending error (non-critical):', error.message));
-    }
+    // Send order confirmation WhatsApp (DISABLED - Need WhatsApp Business setup)
+    // if (phone) {
+    //   sendOrderConfirmationWhatsApp(phone, customerName, newOrder.id, total, newOrder.address)
+    //     .catch(error => console.error('WhatsApp sending error (non-critical):', error.message));
+    // }
     
     res.status(201).json({ success: true, order: newOrder });
   } else {
@@ -811,25 +811,25 @@ app.put('/api/orders/:orderId', async (req, res) => {
       orders[orderIndex].items
     ).catch(error => console.error('Email sending error (non-critical):', error.message));
     
-    // Send order status SMS
-    if (orders[orderIndex].phone) {
-      sendOrderStatusSMS(
-        orders[orderIndex].phone,
-        orders[orderIndex].customerName,
-        orders[orderIndex].id,
-        status
-      ).catch(error => console.error('SMS sending error (non-critical):', error.message));
-    }
+    // Send order status SMS (DISABLED - Need Nigerian Twilio number)
+    // if (orders[orderIndex].phone) {
+    //   sendOrderStatusSMS(
+    //     orders[orderIndex].phone,
+    //     orders[orderIndex].customerName,
+    //     orders[orderIndex].id,
+    //     status
+    //   ).catch(error => console.error('SMS sending error (non-critical):', error.message));
+    // }
     
-    // Send order status WhatsApp
-    if (orders[orderIndex].phone) {
-      sendOrderStatusWhatsApp(
-        orders[orderIndex].phone,
-        orders[orderIndex].customerName,
-        orders[orderIndex].id,
-        status
-      ).catch(error => console.error('WhatsApp sending error (non-critical):', error.message));
-    }
+    // Send order status WhatsApp (DISABLED - Need WhatsApp Business setup)
+    // if (orders[orderIndex].phone) {
+    //   sendOrderStatusWhatsApp(
+    //     orders[orderIndex].phone,
+    //     orders[orderIndex].customerName,
+    //     orders[orderIndex].id,
+    //     status
+    //   ).catch(error => console.error('WhatsApp sending error (non-critical):', error.message));
+    // }
     
     res.json({ success: true, order: orders[orderIndex] });
   } else {
@@ -946,15 +946,15 @@ app.put('/api/orders/:orderId/status', async (req, res) => {
         orders[orderIndex].items
       ).catch(error => console.error('Email sending error (non-critical):', error.message));
       
-      // Send order status SMS
-      if (orders[orderIndex].phone) {
-        sendOrderStatusSMS(
-          orders[orderIndex].phone,
-          orders[orderIndex].customerName,
-          orders[orderIndex].id,
-          status
-        ).catch(error => console.error('SMS sending error (non-critical):', error.message));
-      }
+      // Send order status SMS (DISABLED - Need Nigerian Twilio number)
+      // if (orders[orderIndex].phone) {
+      //   sendOrderStatusSMS(
+      //     orders[orderIndex].phone,
+      //     orders[orderIndex].customerName,
+      //     orders[orderIndex].id,
+      //     status
+      //   ).catch(error => console.error('SMS sending error (non-critical):', error.message));
+      // }
     }
 
     console.log('✅ Order status updated:', req.params.orderId, '→', status);
@@ -1072,32 +1072,32 @@ app.post('/api/send-message', async (req, res) => {
       }
     }
 
-    // Send SMS to each phone recipient
-    if (phones && phones.length > 0) {
-      for (const phoneNumber of phones) {
-        try {
-          await sendOrderStatusSMS(phoneNumber, 'Valued Customer', message, subject);
-          smsSent++;
-          sentCount++;
-          console.log(`✅ SMS sent to: ${phoneNumber}`);
-        } catch (error) {
-          failedCount++;
-          console.error(`❌ Failed to send SMS to ${phoneNumber}:`, error.message);
-        }
-      }
-    }
+    // Send SMS to each phone recipient (DISABLED - Need Nigerian Twilio number)
+    // if (phones && phones.length > 0) {
+    //   for (const phoneNumber of phones) {
+    //     try {
+    //       await sendOrderStatusSMS(phoneNumber, 'Valued Customer', message, subject);
+    //       smsSent++;
+    //       sentCount++;
+    //       console.log(`✅ SMS sent to: ${phoneNumber}`);
+    //     } catch (error) {
+    //       failedCount++;
+    //       console.error(`❌ Failed to send SMS to ${phoneNumber}:`, error.message);
+    //     }
+    //   }
+    // }
 
-    // Send WhatsApp to each phone recipient
-    if (phones && phones.length > 0) {
-      for (const phoneNumber of phones) {
-        try {
-          const whatsappMessage = `📢 *Message from AMOO STORE*\n\n${subject}\n\n${message}\n\nThank you!`;
-          await sendBulkWhatsApp([phoneNumber], whatsappMessage);
-          console.log(`✅ WhatsApp sent to: ${phoneNumber}`);
-        } catch (error) {
-          console.error(`❌ Failed to send WhatsApp to ${phoneNumber}:`, error.message);
-        }
-      }
+    // Send WhatsApp to each phone recipient (DISABLED - Need WhatsApp Business setup)
+    // if (phones && phones.length > 0) {
+    //   for (const phoneNumber of phones) {
+    //     try {
+    //       const whatsappMessage = `📢 *Message from AMOO STORE*\n\n${subject}\n\n${message}\n\nThank you!`;
+    //       await sendBulkWhatsApp([phoneNumber], whatsappMessage);
+    //       console.log(`✅ WhatsApp sent to: ${phoneNumber}`);
+    //     } catch (error) {
+    //       console.error(`❌ Failed to send WhatsApp to ${phoneNumber}:`, error.message);
+    //     }
+    //   }
     }
 
     // Save to Supabase messages table

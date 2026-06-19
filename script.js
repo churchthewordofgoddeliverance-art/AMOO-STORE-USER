@@ -926,6 +926,7 @@ if (document.body.dataset.page === 'checkout') {
       const formData = new FormData(checkoutForm);
       const phone = String(formData.get('phone') || '').trim();
       const address = String(formData.get('address') || '').trim();
+      const country = String(formData.get('country') || '').trim();
       const paymentMethod = String(formData.get('payment-method') || '').trim();
 
       if (!phone || !address || !paymentMethod) {
@@ -934,6 +935,27 @@ if (document.body.dataset.page === 'checkout') {
         }
         return;
       }
+
+      // Generate order summary for WhatsApp
+      const orderItems = cartState.map(item => {
+        const product = getProduct(item.id);
+        return `${product?.name || 'Product'} x${item.quantity}`;
+      }).join('\n');
+      
+      const orderTotal = cartSubtotalAmount() + (cartSubtotalAmount() > 0 ? 3500 : 0);
+      const whatsappMessage = `Hi! I just placed an order on AMOO STORE.
+
+Order Details:
+${orderItems}
+
+Total: ₦${orderTotal.toLocaleString()}
+
+Name: ${accountProfile?.name || 'Customer'}
+Phone: ${phone}
+Delivery Address: ${address}
+Country: ${country}
+
+Please confirm my order. I will proceed with bank transfer payment.`;
 
       if (paymentInstructions) {
         paymentInstructions.innerHTML = `
@@ -945,7 +967,10 @@ if (document.body.dataset.page === 'checkout') {
             <div><strong>Branch code:</strong> 050</div>
             <div>Please keep your payment proof and contact us with a photo or reference after transfer.</div>
           </div>
-          <button class="button button-primary finish-btn" data-payment-confirmed type="button">I have paid</button>
+          <div style="margin-top: 15px; display: flex; gap: 10px;">
+            <button class="button button-primary finish-btn" data-payment-confirmed type="button">I have paid</button>
+            <a class="button button-secondary" href="https://wa.me/2349138154963?text=${encodeURIComponent(whatsappMessage)}" target="_blank">📱 Message on WhatsApp</a>
+          </div>
         `;
         paymentInstructions.removeAttribute('hidden');
       }
@@ -1113,5 +1138,28 @@ if (countrySelect && zipInput) {
     if (phoneInput) {
       phoneInput.placeholder = `e.g. ${countryZipFormats[countrySelect.value].phone}`;
     }
+  }
+}
+
+// Handle checkout country selection
+const checkoutCountrySelect = document.getElementById('checkout-country-select');
+const checkoutPhoneInput = document.getElementById('checkout-phone');
+
+if (checkoutCountrySelect && checkoutPhoneInput) {
+  checkoutCountrySelect.addEventListener('change', (event) => {
+    const selectedCountry = event.target.value;
+    
+    if (selectedCountry && countryZipFormats[selectedCountry]) {
+      checkoutPhoneInput.placeholder = `e.g. ${countryZipFormats[selectedCountry].phone}`;
+      checkoutPhoneInput.setAttribute('data-country', selectedCountry);
+    } else {
+      checkoutPhoneInput.placeholder = 'e.g. +2348012345678';
+      checkoutPhoneInput.removeAttribute('data-country');
+    }
+  });
+  
+  // Set initial placeholder if a country is already selected
+  if (checkoutCountrySelect.value && countryZipFormats[checkoutCountrySelect.value]) {
+    checkoutPhoneInput.placeholder = `e.g. ${countryZipFormats[checkoutCountrySelect.value].phone}`;
   }
 }

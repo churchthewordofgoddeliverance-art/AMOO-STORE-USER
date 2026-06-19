@@ -1098,7 +1098,7 @@ app.post('/api/send-message', async (req, res) => {
     //       console.error(`❌ Failed to send WhatsApp to ${phoneNumber}:`, error.message);
     //     }
     //   }
-    }
+    // }
 
     // Save to Supabase messages table
     try {

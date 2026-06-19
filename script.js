@@ -362,6 +362,7 @@ function saveAccountProfile(profile) {
         console.error('Registration error:', res.status, res.statusText);
         return res.json().then(err => {
           console.error('Error details:', err);
+          throw new Error(`Server registration failed: ${res.status}`);
         });
       }
       return res.json();

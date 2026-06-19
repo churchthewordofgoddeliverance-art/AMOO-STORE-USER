@@ -1975,12 +1975,20 @@ p {
   }
 
   .nav {
+    position: absolute;
+    top: 60px;
+    left: 0;
+    right: 0;
     display: none;
     width: 100%;
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
-    padding-top: 10px;
+    padding: 16px;
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    z-index: 30;
   }
 
   .nav.open {
@@ -1991,6 +1999,12 @@ p {
     padding: 14px 16px;
     border-radius: 16px;
     background: rgba(255, 255, 255, 0.04);
+    transition: background 0.2s ease;
+  }
+
+  .nav a:active,
+  .nav a:focus {
+    background: rgba(255, 255, 255, 0.08);
   }
 
   .collection-grid,

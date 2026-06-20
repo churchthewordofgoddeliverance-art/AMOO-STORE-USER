@@ -18,11 +18,12 @@
   to = "/admin/admin.html"
   status = 200
 
-# Redirect non-existent files to index.html for SPA routing
+# Redirect single file requests (not folders, not static files) to index.html for SPA routing
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+  conditions = {Trailing-slash = "ignore"}
 
 # Security headers
 [[headers]]

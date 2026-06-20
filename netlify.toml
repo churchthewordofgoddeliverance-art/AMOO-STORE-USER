@@ -18,12 +18,18 @@
   to = "/admin/admin.html"
   status = 200
 
-# Redirect single file requests (not folders, not static files) to index.html for SPA routing
+# Admin folder routes
 [[redirects]]
-  from = "/*"
+  from = "/admin/*"
+  to = "/admin/:splat"
+  status = 200
+
+# Redirect routes without file extensions to index.html for SPA routing
+# This pattern only matches paths without dots (no file extensions)
+[[redirects]]
+  from = "/:path([^.]+)"
   to = "/index.html"
   status = 200
-  conditions = {Trailing-slash = "ignore"}
 
 # Security headers
 [[headers]]

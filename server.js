@@ -1057,13 +1057,21 @@ app.put('/api/orders/:orderId/status', async (req, res) => {
       }
       
       // Send order status update email to customer
-      sendOrderStatusUpdateEmail(
-        orders[orderIndex].customerName,
-        orders[orderIndex].customerEmail,
-        orders[orderIndex].id,
-        status,
-        orders[orderIndex].items
-      ).catch(error => console.error('Email sending error (non-critical):', error.message));
+      const customerEmail = orders[orderIndex].customer_email || orders[orderIndex].customerEmail;
+      const customerName = orders[orderIndex].customer_name || orders[orderIndex].customerName;
+      
+      if (customerEmail) {
+        console.log('📧 Sending status update email to:', customerEmail);
+        sendOrderStatusUpdateEmail(
+          customerName,
+          customerEmail,
+          orders[orderIndex].id,
+          status,
+          orders[orderIndex].items
+        ).catch(error => console.error('Email sending error (non-critical):', error.message));
+      } else {
+        console.warn('⚠️ No customer email found for order:', req.params.orderId);
+      }
     }
 
     console.log('✅ Order status updated:', req.params.orderId, '→', status);

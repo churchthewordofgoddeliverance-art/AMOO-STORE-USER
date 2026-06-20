@@ -1612,7 +1612,7 @@ app.get('/api/order-riders/available', async (req, res) => {
     // Fetch orders with status='assigned' that don't have a rider yet
     const { data, error } = await supabase
       .from('order_riders')
-      .select('order_id, orders(*)')
+      .select('id, order_id, orders(*)')
       .is('rider_id', null)
       .limit(50);
     
@@ -1621,11 +1621,17 @@ app.get('/api/order-riders/available', async (req, res) => {
       return res.json([]); // Return empty if Supabase fails
     }
 
-    // Map to include order details
-    const availableOrders = data.map(ord => ({
-      id: ord.order_id,
-      ...ord.orders
-    }));
+    // Map to include order details with fallback
+    const availableOrders = data.map(ord => {
+      const orderData = ord.orders || {};
+      return {
+        id: ord.id,
+        order_id: ord.order_id,
+        riderAssignmentId: ord.id,
+        ...orderData,
+        items: orderData.items || []
+      };
+    });
 
     console.log(`✅ Fetched ${availableOrders.length} available orders`);
     res.json(availableOrders);
@@ -1659,17 +1665,21 @@ app.get('/api/order-riders/rider/:riderId', async (req, res) => {
       return res.json([]); // Return empty if Supabase fails
     }
 
-    // Map to include order details
-    const orders = data.map(ord => ({
-      id: ord.id,
-      order_id: ord.order_id,
-      rider_id: ord.rider_id,
-      status: ord.status,
-      delivered_at: ord.delivered_at,
-      delivery_code: ord.delivery_code,
-      notes: ord.notes,
-      ...ord.orders
-    }));
+    // Map to include order details with defensive handling
+    const orders = data.map(ord => {
+      const orderData = ord.orders || {};
+      return {
+        id: ord.id,
+        order_id: ord.order_id,
+        rider_id: ord.rider_id,
+        status: ord.status,
+        delivered_at: ord.delivered_at,
+        delivery_code: ord.delivery_code,
+        notes: ord.notes,
+        ...orderData,
+        items: orderData.items || []
+      };
+    });
 
     console.log(`✅ Fetched ${orders.length} ${status} orders for rider ${riderId}`);
     res.json(orders);

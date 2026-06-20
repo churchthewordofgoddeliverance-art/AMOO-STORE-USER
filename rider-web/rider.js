@@ -7,6 +7,8 @@ let orders = [];
 let currentDeliveryStatus = {};
 let currentDeliveryCode = null;
 let currentOrder = null;
+let monthlyEarnings = 0;
+let totalEarnings = 0;
 
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', function() {
@@ -75,6 +77,59 @@ function setupEventListeners() {
 
     // Status toggle
     document.getElementById('riderStatus').addEventListener('click', toggleOnlineStatus);
+
+    // Earnings card click - open withdrawal modal
+    const earningsCard = document.getElementById('earningsCard');
+    if (earningsCard) {
+        earningsCard.addEventListener('click', openWithdrawalModal);
+    }
+
+    // Withdrawal modal controls
+    document.getElementById('closeWithdrawalModal')?.addEventListener('click', closeWithdrawalModal);
+    document.getElementById('cancelWithdrawalBtn')?.addEventListener('click', closeWithdrawalModal);
+    document.getElementById('submitWithdrawalBtn')?.addEventListener('click', submitWithdrawal);
+    document.getElementById('withdrawMaxBtn')?.addEventListener('click', withdrawMaxAmount);
+
+    window.addEventListener('click', function(event) {
+        if (event.target === document.getElementById('withdrawalModal')) closeWithdrawalModal();
+    });
+
+    // Registration and Login modal buttons
+    const regCancelBtn = document.getElementById('regCancelBtn');
+    if (regCancelBtn) {
+        regCancelBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('registrationModal').classList.remove('show');
+            document.getElementById('loginModal').classList.add('show');
+        });
+    }
+
+    const loginCancelBtn = document.getElementById('loginCancelBtn');
+    if (loginCancelBtn) {
+        loginCancelBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('loginModal').classList.remove('show');
+            document.getElementById('registrationModal').classList.add('show');
+        });
+    }
+
+    const switchToLogin = document.getElementById('switchToLogin');
+    if (switchToLogin) {
+        switchToLogin.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('registrationModal').classList.remove('show');
+            document.getElementById('loginModal').classList.add('show');
+        });
+    }
+
+    const switchToRegister = document.getElementById('switchToRegister');
+    if (switchToRegister) {
+        switchToRegister.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('loginModal').classList.remove('show');
+            document.getElementById('registrationModal').classList.add('show');
+        });
+    }
 }
 
 // ===== REGISTRATION =====
@@ -259,12 +314,32 @@ function switchPage(pageName) {
 async function loadAvailableOrders() {
     try {
         const token = localStorage.getItem('riderToken');
-        const response = await fetch(`${API_BASE}/api/orders?status=shipped`, {
+        // Fetch available orders from order_riders table (not yet assigned to any rider)
+        const response = await fetch(`${API_BASE}/api/order-riders/available`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (response.ok) {
-            orders = await response.json();
+            const orderRiders = await response.json();
+            // Map order_riders data to orders format
+            orders = orderRiders.map(ord => {
+                // Data might be nested in 'orders' object or flat
+                const orderData = ord.orders || ord;
+                return {
+                    id: ord.order_id || ord.id,
+                    orderId: ord.order_id || ord.id,
+                    riderAssignmentId: ord.id || ord.riderAssignmentId,
+                    customerName: orderData.customerName || 'Unknown',
+                    customerPhone: orderData.customerPhone || 'N/A',
+                    customerEmail: orderData.customerEmail || 'N/A',
+                    items: (orderData.items && Array.isArray(orderData.items)) ? orderData.items : [],
+                    total: orderData.total || 0,
+                    address: orderData.address || orderData.deliveryAddress || 'N/A',
+                    distance: orderData.distance || 0,
+                    paymentMethod: orderData.paymentMethod || 'N/A',
+                    status: 'available'
+                };
+            });
             displayAvailableOrders();
             updateDashboardStats();
         }
@@ -336,6 +411,10 @@ function createOrderCard(order) {
     const card = document.createElement('div');
     card.className = 'order-card';
     
+    // Ensure items is an array
+    const items = Array.isArray(order.items) ? order.items : [];
+    const itemCount = items.length || 0;
+    
     card.innerHTML = `
         <div class="order-header">
             <span class="order-id">${order.id}</span>
@@ -346,11 +425,11 @@ function createOrderCard(order) {
             <p class="customer-phone">${order.customerPhone}</p>
         </div>
         <div class="order-details-list">
-            <p><strong>Items:</strong> ${order.items.length} item${order.items.length > 1 ? 's' : ''}</p>
+            <p><strong>Items:</strong> ${itemCount} item${itemCount > 1 ? 's' : ''}</p>
             <p><strong>Distance:</strong> ${order.distance} km</p>
         </div>
         <div class="order-footer">
-            <span class="order-amount">₦${order.total.toLocaleString()}</span>
+            <span class="order-amount">₦${(order.total || 0).toLocaleString()}</span>
             <span class="order-distance">${order.distance} km</span>
         </div>
     `;
@@ -408,8 +487,10 @@ async function acceptOrder() {
     try {
         const riderId = localStorage.getItem('riderId');
         const token = localStorage.getItem('riderToken');
+        const riderAssignmentId = currentOrder.riderAssignmentId;
 
-        const response = await fetch(`${API_BASE}/api/order/${currentOrder.id}/assign-rider`, {
+        // Use new order-riders endpoint
+        const response = await fetch(`${API_BASE}/api/order-riders/${riderAssignmentId}/accept`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -419,14 +500,14 @@ async function acceptOrder() {
         });
 
         if (response.ok) {
-            currentOrder.status = 'active';
+            currentOrder.status = 'assigned';
             currentOrder.riderId = riderId;
             currentDeliveryStatus[currentOrder.id] = 'picked';
             
             closeOrderModal();
             await loadAvailableOrders();
             updateDashboardStats();
-            showNotification(`Order ${currentOrder.id} accepted! On the way.`, 'success');
+            showNotification(`Order ${currentOrder.id} accepted! Heading to pickup.`, 'success');
         }
     } catch (error) {
         console.error('Error accepting order:', error);
@@ -446,12 +527,34 @@ async function loadActiveDeliveries() {
         const riderId = localStorage.getItem('riderId');
         const token = localStorage.getItem('riderToken');
 
-        const response = await fetch(`${API_BASE}/api/rider/${riderId}/active-orders`, {
+        // Fetch active orders assigned to this rider from order_riders table
+        const response = await fetch(`${API_BASE}/api/order-riders/rider/${riderId}?status=active`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (response.ok) {
-            const activeOrders = await response.json();
+            const activeOrderRiders = await response.json();
+            // Filter out delivered orders (those are for completed page)
+            const activeOrders = activeOrderRiders
+                .filter(ord => ord.status !== 'delivered')
+                .map(ord => {
+                    // Handle nested orders data
+                    const orderData = ord.orders || ord;
+                    return {
+                        id: ord.order_id || ord.id,
+                        orderId: ord.order_id || ord.id,
+                        riderAssignmentId: ord.id || ord.riderAssignmentId,
+                        customerName: orderData.customerName || 'Unknown',
+                        customerPhone: orderData.customerPhone || 'N/A',
+                        customerEmail: orderData.customerEmail || 'N/A',
+                        items: (orderData.items && Array.isArray(orderData.items)) ? orderData.items : [],
+                        total: orderData.total || 0,
+                        address: orderData.address || orderData.deliveryAddress || 'N/A',
+                        distance: orderData.distance || 0,
+                        paymentMethod: orderData.paymentMethod || 'N/A',
+                        status: ord.status
+                    };
+                });
             displayActiveDeliveries(activeOrders);
         }
     } catch (error) {
@@ -552,6 +655,7 @@ async function updateDeliveryStatus() {
 
     try {
         const token = localStorage.getItem('riderToken');
+        const riderAssignmentId = currentOrder.riderAssignmentId;
         
         const updateData = {
             status: status,
@@ -579,8 +683,8 @@ async function updateDeliveryStatus() {
             });
         }
 
-        // Update order status
-        const response = await fetch(`${API_BASE}/api/order/${currentOrder.id}/status`, {
+        // Update order status using new order-riders endpoint
+        const response = await fetch(`${API_BASE}/api/order-riders/${riderAssignmentId}/status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -670,12 +774,35 @@ async function loadCompletedOrders() {
         const riderId = localStorage.getItem('riderId');
         const token = localStorage.getItem('riderToken');
 
-        const response = await fetch(`${API_BASE}/api/rider/${riderId}/completed-orders`, {
+        // Fetch completed orders assigned to this rider from order_riders table
+        const response = await fetch(`${API_BASE}/api/order-riders/rider/${riderId}?status=delivered`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (response.ok) {
-            const completedOrders = await response.json();
+            const completedOrderRiders = await response.json();
+            // Filter to only delivered orders
+            const completedOrders = completedOrderRiders
+                .filter(ord => ord.status === 'delivered')
+                .map(ord => {
+                    // Handle nested orders data
+                    const orderData = ord.orders || ord;
+                    return {
+                        id: ord.order_id || ord.id,
+                        orderId: ord.order_id || ord.id,
+                        riderAssignmentId: ord.id || ord.riderAssignmentId,
+                        customerName: orderData.customerName || 'Unknown',
+                        customerPhone: orderData.customerPhone || 'N/A',
+                        customerEmail: orderData.customerEmail || 'N/A',
+                        items: (orderData.items && Array.isArray(orderData.items)) ? orderData.items : [],
+                        total: orderData.total || 0,
+                        address: orderData.address || orderData.deliveryAddress || 'N/A',
+                        distance: orderData.distance || 0,
+                        paymentMethod: orderData.paymentMethod || 'N/A',
+                        deliveredAt: ord.delivered_at,
+                        status: 'delivered'
+                    };
+                });
             displayCompletedOrders(completedOrders);
         }
     } catch (error) {
@@ -737,13 +864,27 @@ function updateDashboardStats() {
         const status = currentDeliveryStatus[id];
         return status && status !== 'delivered';
     }).length;
+    
+    const completedCount = Object.keys(currentDeliveryStatus).filter(id => currentDeliveryStatus[id] === 'delivered').length;
+    
+    // Calculate earnings: 1500 per completed delivery
+    const earningsPerOrder = 1500;
+    const monthEarnings = completedCount * earningsPerOrder;
+    const totalEarnings = (riderData?.totalDeliveries || 0) * earningsPerOrder;
 
     document.getElementById('availableCount').textContent = availableCount;
     document.getElementById('activeCount').textContent = activeCount;
-    document.getElementById('completedCount').textContent = Object.keys(currentDeliveryStatus).filter(id => currentDeliveryStatus[id] === 'delivered').length;
+    document.getElementById('completedCount').textContent = completedCount;
+    
+    // Update sidebar earnings
+    const sidebarEarningsElement = document.getElementById('sidebarEarnings');
+    if (sidebarEarningsElement) {
+        sidebarEarningsElement.textContent = `₦${monthEarnings.toLocaleString()}`;
+    }
     
     if (riderData) {
-        document.getElementById('earningsValue').textContent = `₦${(riderData.monthEarnings || 0).toLocaleString()}`;
+        document.getElementById('earningsValue').textContent = `₦${monthEarnings.toLocaleString()}`;
+        document.getElementById('totalEarnings').textContent = `₦${totalEarnings.toLocaleString()}`;
     }
 }
 
@@ -832,3 +973,83 @@ window.addEventListener('load', () => {
     switchPage('dashboard');
     loadAvailableOrders();
 });
+
+// ===== WITHDRAWAL SYSTEM =====
+function openWithdrawalModal() {
+    if (!riderData) return;
+
+    const completedCount = Object.keys(currentDeliveryStatus).filter(id => currentDeliveryStatus[id] === 'delivered').length;
+    const earningsPerOrder = 1500;
+    monthlyEarnings = completedCount * earningsPerOrder;
+    totalEarnings = (riderData?.totalDeliveries || 0) * earningsPerOrder;
+
+    // Update withdrawal modal display
+    document.getElementById('totalEarningsDisplay').textContent = `₦${totalEarnings.toLocaleString()}`;
+    document.getElementById('monthEarningsDisplay').textContent = `₦${monthlyEarnings.toLocaleString()}`;
+    document.getElementById('completedOrdersDisplay').textContent = completedCount;
+
+    // Set bank account from rider data
+    const accountSelect = document.getElementById('withdrawalAccount');
+    accountSelect.innerHTML = `
+        <option value="${riderData.id}" selected>
+            ${riderData.bankName} - ${riderData.accountNumber}
+        </option>
+    `;
+
+    // Show modal
+    document.getElementById('withdrawalModal').classList.add('show');
+}
+
+function closeWithdrawalModal() {
+    document.getElementById('withdrawalModal').classList.remove('show');
+    document.getElementById('withdrawalAmount').value = '';
+}
+
+function withdrawMaxAmount() {
+    document.getElementById('withdrawalAmount').value = monthlyEarnings;
+}
+
+async function submitWithdrawal() {
+    const amount = parseFloat(document.getElementById('withdrawalAmount').value);
+    const token = localStorage.getItem('riderToken');
+    const riderId = localStorage.getItem('riderId');
+
+    if (!amount || amount < 1000) {
+        showNotification('Minimum withdrawal amount is ₦1,000', 'warning');
+        return;
+    }
+
+    if (amount > monthlyEarnings) {
+        showNotification('Insufficient balance for withdrawal', 'danger');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/rider/${riderId}/withdraw`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                amount: amount,
+                bankName: riderData.bankName,
+                accountNumber: riderData.accountNumber,
+                accountName: riderData.accountName
+            })
+        });
+
+        if (response.ok) {
+            showNotification('Withdrawal request submitted! Payment processing within 7 days.', 'success');
+            closeWithdrawalModal();
+            // Update earnings
+            monthlyEarnings -= amount;
+            updateDashboardStats();
+        } else {
+            showNotification('Failed to process withdrawal', 'danger');
+        }
+    } catch (error) {
+        console.error('Withdrawal error:', error);
+        showNotification('Error processing withdrawal', 'danger');
+    }
+}

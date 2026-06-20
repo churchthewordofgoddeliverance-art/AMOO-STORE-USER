@@ -1061,9 +1061,9 @@ app.put('/api/orders/:orderId/status', async (req, res) => {
               .select();
             
             if (insertError) {
-              console.warn('⚠️ Failed to create rider_orders entries:', insertError.message);
+              console.warn('⚠️ Failed to create order_riders entries:', insertError.message);
             } else {
-              console.log(`✅ Created ${insertedEntries?.length || riderOrderEntries.length} rider_orders entries with full order details`);
+              console.log(`✅ Created ${insertedEntries?.length || riderOrderEntries.length} order_riders entries with full order details`);
               
               // Send notification emails to ALL riders
               console.log('📧 Sending order notifications to all riders...');
@@ -1087,7 +1087,7 @@ app.put('/api/orders/:orderId/status', async (req, res) => {
             console.log('⚠️ No riders registered in the system');
           }
         } catch (riderOrderError) {
-          console.warn('⚠️ Error managing rider_orders:', riderOrderError.message);
+          console.warn('⚠️ Error managing order_riders:', riderOrderError.message);
         }
       }
       
@@ -2143,7 +2143,7 @@ app.get('/api/rider-orders/available', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch available orders' });
     }
     
-    console.log(`✅ Fetched ${availableOrders?.length || 0} available orders from rider_orders table`);
+    console.log(`✅ Fetched ${availableOrders?.length || 0} available orders from order_riders table`);
     res.json(availableOrders || []);
   } catch (error) {
     console.error('❌ Error fetching available orders:', error);
@@ -2484,9 +2484,9 @@ app.post('/api/notify-riders-order', async (req, res) => {
       return res.json({ success: true, message: 'No online riders to notify', count: 0 });
     }
 
-    // Create rider_orders entries in Supabase for each online rider with full order details
-    try {
-      console.log('📝 Creating rider_orders entries in Supabase for all online riders...');
+// Create order_riders entries in Supabase for each online rider with full order details
+      try {
+        console.log('📝 Creating order_riders entries in Supabase for all online riders...');
       
       const riderOrderEntries = onlineRiders.map((rider) => ({
         order_id: orderId,

@@ -67,10 +67,10 @@ CREATE POLICY "Allow public read riders"
   ON riders FOR SELECT 
   USING (true);
 
--- Allow riders to read their own data
-CREATE POLICY "Allow riders read own data" 
-  ON riders FOR SELECT 
-  USING (auth.uid()::text = id);
+-- Allow backend service to insert riders (for server-side registration)
+CREATE POLICY "Allow backend insert riders" 
+  ON riders FOR INSERT 
+  WITH CHECK (true);
 
 -- Allow riders to update their own data
 CREATE POLICY "Allow riders update own data" 
@@ -82,10 +82,10 @@ CREATE POLICY "Allow public read order_riders"
   ON order_riders FOR SELECT 
   USING (true);
 
--- Allow riders to read their own assignments
-CREATE POLICY "Allow riders read own assignments" 
-  ON order_riders FOR SELECT 
-  USING (auth.uid()::text = rider_id);
+-- Allow backend service to insert order_riders (for server-side assignment)
+CREATE POLICY "Allow backend insert order_riders" 
+  ON order_riders FOR INSERT 
+  WITH CHECK (true);
 
 -- Allow riders to update their own assignments
 CREATE POLICY "Allow riders update own assignments" 

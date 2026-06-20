@@ -50,6 +50,10 @@
           <span class="nav-icon">💬</span>
           <span class="nav-label">Messages</span>
         </a>
+        <a href="#riders" class="nav-link" data-page="riders">
+          <span class="nav-icon">🏍️</span>
+          <span class="nav-label">Riders</span>
+        </a>
         <a href="#settings" class="nav-link" data-page="settings">
           <span class="nav-icon">⚙️</span>
           <span class="nav-label">Settings</span>
@@ -233,6 +237,19 @@
                 This message will be sent to all registered customer emails.
               </p>
             </div>
+          </div>
+        </section>
+
+        <!-- Riders Management Page -->
+        <section class="page-section" data-page="riders">
+          <div class="page-header">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <h2>🏍️ Riders Management</h2>
+              <button class="btn btn-small" onclick="loadRiders()" title="Refresh riders from Supabase">🔄 Refresh</button>
+            </div>
+          </div>
+          <div id="riders-list" class="items-list">
+            <p>Loading riders...</p>
           </div>
         </section>
 

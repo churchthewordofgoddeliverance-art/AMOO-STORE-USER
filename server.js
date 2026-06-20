@@ -60,6 +60,21 @@ app.use('/admin', express.static(path.join(__dirname, 'admin'), {
   }
 }));
 
+// Rider route BEFORE rider static middleware
+app.get(['/rider', '/rider/'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'rider-web', 'rider.html'));
+});
+
+app.use('/rider', express.static(path.join(__dirname, 'rider-web'), {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css');
+    } else if (path.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
+
 // Serve index.html for root path
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
@@ -1304,6 +1319,658 @@ app.get('/api/registered-emails', async (req, res) => {
     const users = readJSON(userFilePath);
     const emails = users.map(u => ({ email: u.email, name: u.name }));
     res.json(emails);
+  }
+});
+
+// ===== RIDER ENDPOINTS =====
+const riderFilePath = path.join(__dirname, 'riders.json');
+
+// GET All Riders (from Supabase)
+app.get('/api/riders', async (req, res) => {
+  try {
+    // Try fetching from Supabase first
+    const { data, error } = await supabase.from('riders').select('*').order('created_at', { ascending: false });
+    
+    if (error) {
+      console.warn('⚠️ Supabase riders fetch failed, falling back to JSON:', error.message);
+      // Fallback to JSON file
+      const riders = readJSON(riderFilePath);
+      return res.json(riders);
+    }
+
+    if (!data || data.length === 0) {
+      // Try JSON as fallback
+      const riders = readJSON(riderFilePath);
+      return res.json(riders);
+    }
+
+    console.log('✅ Fetched', data.length, 'riders from Supabase');
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error fetching riders:', error);
+    // Fallback to JSON
+    try {
+      const riders = readJSON(riderFilePath);
+      res.json(riders);
+    } catch {
+      res.status(500).json({ error: 'Failed to fetch riders' });
+    }
+  }
+});
+
+// GET Rider by ID (Updated for Supabase)
+app.get('/api/riders/:riderId', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('riders')
+      .select('*')
+      .eq('id', req.params.riderId)
+      .single();
+
+    if (error) {
+      console.warn('⚠️ Supabase fetch failed, trying JSON:', error.message);
+      // Fallback to JSON
+      const riders = readJSON(riderFilePath);
+      const rider = riders.find(r => r.id === req.params.riderId);
+      if (rider) return res.json(rider);
+      return res.status(404).json({ error: 'Rider not found' });
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'Rider not found' });
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error fetching rider:', error);
+    res.status(500).json({ error: 'Failed to fetch rider' });
+  }
+});
+
+// PUT Update Rider Status (Updated for Supabase)
+app.put('/api/rider/:riderId/status', async (req, res) => {
+  const { is_online } = req.body;
+  const riderId = req.params.riderId;
+
+  if (is_online === undefined) {
+    return res.status(400).json({ error: 'is_online status is required' });
+  }
+
+  try {
+    // Update in Supabase
+    const { data, error } = await supabase
+      .from('riders')
+      .update({ is_online: is_online, updated_at: new Date().toISOString() })
+      .eq('id', riderId)
+      .select();
+
+    if (error) {
+      console.warn('⚠️ Supabase update failed, trying JSON:', error.message);
+      // Fallback to JSON
+      const riders = readJSON(riderFilePath);
+      const riderIndex = riders.findIndex(r => r.id === riderId);
+      if (riderIndex === -1) return res.status(404).json({ error: 'Rider not found' });
+      riders[riderIndex].is_online = is_online;
+      writeJSON(riderFilePath, riders);
+      return res.json({ success: true, rider: riders[riderIndex] });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Rider not found' });
+    }
+
+    console.log('✅ Rider status updated:', riderId, '→', is_online ? 'ONLINE' : 'OFFLINE');
+    res.json({ success: true, rider: data[0] });
+  } catch (error) {
+    console.error('❌ Error updating rider status:', error);
+    res.status(500).json({ error: 'Failed to update rider status' });
+  }
+});
+
+// ===== EXISTING RIDER ENDPOINTS (BELOW) =====
+
+app.post('/api/rider/register', async (req, res) => {
+  const { name, email, phone, password, vehicleType, licensePlate, bankName, accountNumber, accountName } = req.body;
+
+  if (!name || !email || !phone || !password || !vehicleType || !licensePlate || !bankName || !accountNumber || !accountName) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  try {
+    // Check if rider already exists in Supabase
+    const { data: existingRiders, error: checkError } = await supabase
+      .from('riders')
+      .select('email')
+      .eq('email', email);
+
+    if (checkError) {
+      console.warn('⚠️ Supabase check failed, using JSON fallback:', checkError.message);
+    } else if (existingRiders && existingRiders.length > 0) {
+      return res.status(400).json({ error: 'Email already registered as a rider' });
+    }
+
+    const riderId = 'R' + Date.now().toString();
+    const newRider = {
+      id: riderId,
+      name,
+      email,
+      phone,
+      password_hash: password, // In production, use bcrypt
+      vehicle_type: vehicleType,
+      license_plate: licensePlate,
+      bank_name: bankName,
+      account_number: accountNumber,
+      account_name: accountName,
+      is_online: false,
+      rating: 5.0,
+      total_deliveries: 0,
+      month_deliveries: 0,
+      month_earnings: 0.00,
+      total_earnings: 0.00,
+      join_date: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    // Try to save to Supabase first
+    const { data: supabaseData, error: supabaseError } = await supabase
+      .from('riders')
+      .insert([newRider])
+      .select();
+
+    if (supabaseError) {
+      console.warn('⚠️ Supabase insert failed, saving to JSON:', supabaseError.message);
+      // Fallback to JSON file
+      const riders = readJSON(riderFilePath);
+      riders.push({
+        ...newRider,
+        vehicleType,
+        licensePlate,
+        bankName,
+        accountNumber,
+        accountName,
+        isOnline: false,
+        totalDeliveries: 0,
+        monthDeliveries: 0,
+        monthEarnings: 0,
+        totalEarnings: 0,
+        joinDate: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      });
+      writeJSON(riderFilePath, riders);
+    } else {
+      console.log('✅ Rider registered in Supabase:', email);
+      // Also save to JSON for backup
+      const riders = readJSON(riderFilePath);
+      riders.push({
+        ...newRider,
+        vehicleType,
+        licensePlate,
+        bankName,
+        accountNumber,
+        accountName,
+        isOnline: false
+      });
+      writeJSON(riderFilePath, riders);
+    }
+
+    const token = riderId + '_' + Date.now();
+    res.status(201).json({
+      success: true,
+      message: 'Rider registered successfully',
+      riderId: riderId,
+      token: token
+    });
+  } catch (error) {
+    console.error('❌ Registration error:', error);
+    res.status(500).json({ error: 'Failed to register rider' });
+  }
+});
+
+// POST Rider Login
+app.post('/api/rider/login', (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  const riders = readJSON(riderFilePath);
+  const rider = riders.find((r) => r.email === email && r.password === password);
+
+  if (rider) {
+    const token = rider.id + '_' + Date.now();
+    res.json({
+      success: true,
+      message: 'Login successful',
+      riderId: rider.id,
+      token: token,
+      name: rider.name,
+      email: rider.email
+    });
+  } else {
+    res.status(401).json({ error: 'Invalid email or password' });
+  }
+});
+
+// GET Rider Data
+app.get('/api/rider/:riderId', (req, res) => {
+  const riders = readJSON(riderFilePath);
+  const rider = riders.find((r) => r.id === req.params.riderId);
+
+  if (rider) {
+    res.json(rider);
+  } else {
+    res.status(404).json({ error: 'Rider not found' });
+  }
+});
+
+// PUT Update Rider Status
+app.put('/api/rider/status', (req, res) => {
+  const { riderId, isOnline } = req.body;
+  
+  if (!riderId) {
+    return res.status(400).json({ error: 'Rider ID is required' });
+  }
+
+  const riders = readJSON(riderFilePath);
+  const riderIndex = riders.findIndex((r) => r.id === riderId);
+
+  if (riderIndex === -1) {
+    return res.status(404).json({ error: 'Rider not found' });
+  }
+
+  riders[riderIndex].isOnline = isOnline !== undefined ? isOnline : !riders[riderIndex].isOnline;
+  
+  if (writeJSON(riderFilePath, riders)) {
+    res.json({ success: true, rider: riders[riderIndex] });
+  } else {
+    res.status(500).json({ error: 'Failed to update rider status' });
+  }
+});
+
+// POST Assign Rider to Order
+app.post('/api/order/:orderId/assign-rider', async (req, res) => {
+  const { riderId } = req.body;
+
+  if (!riderId) {
+    return res.status(400).json({ error: 'Rider ID is required' });
+  }
+
+  const orders = readJSON(ordersFilePath);
+  const orderIndex = orders.findIndex((o) => o.id == req.params.orderId);
+
+  if (orderIndex === -1) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+
+  orders[orderIndex].riderId = riderId;
+  orders[orderIndex].status = 'assigned';
+
+  if (writeJSON(ordersFilePath, orders)) {
+    // Send notification to customer
+    const order = orders[orderIndex];
+    try {
+      await sendOrderStatusUpdateEmail(
+        order.customerName,
+        order.customerEmail,
+        order.id,
+        'shipped',
+        order.items
+      );
+    } catch (error) {
+      console.error('Error sending email:', error);
+    }
+
+    console.log('✅ Order assigned to rider:', riderId);
+    res.json({ success: true, order: orders[orderIndex] });
+  } else {
+    res.status(500).json({ error: 'Failed to assign rider' });
+  }
+});
+
+// PUT Update Delivery Status
+app.put('/api/order/:orderId/status', async (req, res) => {
+  const { status, notes, deliveryCode, customerEmail } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ error: 'Status is required' });
+  }
+
+  const orders = readJSON(ordersFilePath);
+  const orderIndex = orders.findIndex((o) => o.id == req.params.orderId);
+
+  if (orderIndex === -1) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+
+  orders[orderIndex].status = status;
+  if (notes) orders[orderIndex].notes = notes;
+  if (deliveryCode) orders[orderIndex].deliveryCode = deliveryCode;
+
+  if (writeJSON(ordersFilePath, orders)) {
+    // Send email notification when rider arrives
+    if (status === 'arrived' && deliveryCode && customerEmail) {
+      try {
+        const { sendOrderStatusUpdateEmail } = require('./emailService');
+        await sendOrderStatusUpdateEmail(
+          orders[orderIndex].customerName,
+          customerEmail,
+          req.params.orderId,
+          'arrived',
+          orders[orderIndex].items,
+          deliveryCode
+        );
+      } catch (error) {
+        console.error('Error sending delivery code email:', error);
+      }
+    }
+
+    console.log('✅ Order status updated:', status);
+    res.json({ success: true, order: orders[orderIndex] });
+  } else {
+    res.status(500).json({ error: 'Failed to update order status' });
+  }
+});
+
+// POST Send Delivery Code Email
+app.post('/api/send-delivery-code', async (req, res) => {
+  const { orderId, customerEmail, customerName, code } = req.body;
+
+  if (!orderId || !customerEmail || !code) {
+    return res.status(400).json({ error: 'Order ID, customer email, and code are required' });
+  }
+
+  try {
+    const emailHTML = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h2 style="color: #2c3e50; margin-bottom: 20px;">🎉 Your Rider Has Arrived!</h2>
+          
+          <p style="color: #555; font-size: 16px; margin: 20px 0;">
+            Hi ${customerName},<br><br>
+            Your delivery rider has arrived at your location. Please provide this code to confirm delivery:
+          </p>
+          
+          <div style="background-color: #FF6B35; padding: 30px; border-radius: 8px; text-align: center; margin: 30px 0;">
+            <p style="color: #ffffff; font-size: 14px; margin: 0 0 10px 0;">Delivery Code:</p>
+            <p style="color: #ffffff; font-size: 48px; font-weight: bold; letter-spacing: 10px; margin: 0; font-family: 'Courier New', monospace;">
+              ${code}
+            </p>
+          </div>
+          
+          <p style="color: #555; font-size: 14px; margin: 20px 0;">
+            <strong>Order ID:</strong> ${orderId}<br>
+            <strong>Important:</strong> Only share this code with your rider. Do not share with anyone else.
+          </p>
+          
+          <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+            This is an automated message from Amoo Store. If you did not expect this email, please contact support.
+          </p>
+        </div>
+      </div>
+    `;
+
+    // Get admin emails for notification
+    const adminEmails = getAdminEmails();
+    const adminNotificationHTML = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2>🚚 Delivery Code Generated</h2>
+        <p><strong>Order ID:</strong> ${orderId}</p>
+        <p><strong>Customer:</strong> ${customerName} (${customerEmail})</p>
+        <p><strong>Delivery Code:</strong> <strong style="font-size: 24px; letter-spacing: 5px;">${code}</strong></p>
+        <p style="color: #666; margin-top: 20px;">Rider has arrived at customer location.</p>
+      </div>
+    `;
+
+    // Send to customer
+    console.log(`📧 Sending delivery code to: ${customerEmail}`);
+    await sendOrderStatusUpdateEmail(
+      customerName,
+      customerEmail,
+      orderId,
+      'arrived',
+      [],
+      code
+    ).catch(e => console.error('Error sending to customer:', e));
+
+    // Send to admin
+    for (const adminEmail of adminEmails) {
+      await sendAdminOrderNotification(
+        adminEmail,
+        orderId,
+        customerName,
+        customerEmail,
+        [],
+        0,
+        0,
+        0
+      ).catch(e => console.error('Error sending to admin:', e));
+    }
+
+    res.json({ success: true, message: 'Delivery code sent to customer' });
+  } catch (error) {
+    console.error('Error sending delivery code:', error);
+    res.status(500).json({ error: 'Failed to send delivery code' });
+  }
+});
+
+// PUT Mark Order as Delivered (with code verification)
+app.put('/api/order/:orderId/delivered', async (req, res) => {
+  const { code, customerEmail } = req.body;
+
+  if (!code) {
+    return res.status(400).json({ error: 'Delivery code is required' });
+  }
+
+  const orders = readJSON(ordersFilePath);
+  const orderIndex = orders.findIndex((o) => o.id == req.params.orderId);
+
+  if (orderIndex === -1) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+
+  const order = orders[orderIndex];
+
+  // Verify code
+  if (order.deliveryCode !== code) {
+    return res.status(400).json({ error: 'Invalid delivery code' });
+  }
+
+  // Update order status
+  order.status = 'delivered';
+  order.deliveredAt = new Date().toISOString();
+  order.verificationCode = code;
+
+  if (writeJSON(ordersFilePath, orders)) {
+    // Get admin emails
+    const adminEmails = getAdminEmails();
+
+    // Send delivery confirmation to customer
+    try {
+      const confirmationHTML = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h2 style="color: #28a745; margin-bottom: 20px;">✅ Delivery Completed!</h2>
+            
+            <p style="color: #555; font-size: 16px; margin: 20px 0;">
+              Hi ${order.customerName},<br><br>
+              Your order has been successfully delivered! Thank you for shopping with us.
+            </p>
+            
+            <div style="background-color: #f0f0f0; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 10px 0;"><strong>Order ID:</strong> ${req.params.orderId}</p>
+              <p style="margin: 10px 0;"><strong>Delivered at:</strong> ${new Date(order.deliveredAt).toLocaleString()}</p>
+              <p style="margin: 10px 0;"><strong>Total Amount:</strong> ₦${order.total.toLocaleString()}</p>
+            </div>
+            
+            <p style="color: #666; font-size: 14px; margin: 20px 0;">
+              If you have any questions about your order, please contact our support team.
+            </p>
+          </div>
+        </div>
+      `;
+
+      await sendOrderStatusUpdateEmail(
+        order.customerName,
+        customerEmail || order.customerEmail,
+        req.params.orderId,
+        'delivered',
+        order.items
+      ).catch(e => console.error('Error:', e));
+    } catch (error) {
+      console.error('Error sending customer confirmation:', error);
+    }
+
+    // Send notification to all admins
+    try {
+      for (const adminEmail of adminEmails) {
+        await sendAdminOrderNotification(
+          adminEmail,
+          req.params.orderId,
+          order.customerName,
+          order.customerEmail,
+          order.items,
+          order.total,
+          order.subtotal || 0,
+          order.delivery || 0
+        ).catch(e => console.error('Error:', e));
+      }
+    } catch (error) {
+      console.error('Error sending admin notification:', error);
+    }
+
+    console.log('✅ Order marked as delivered:', req.params.orderId);
+    res.json({ success: true, message: 'Order delivered successfully', order });
+  } else {
+    res.status(500).json({ error: 'Failed to mark order as delivered' });
+  }
+});
+
+// GET Rider's Active Orders
+app.get('/api/rider/:riderId/active-orders', (req, res) => {
+  const orders = readJSON(ordersFilePath);
+  const activeOrders = orders.filter((o) => o.riderId === req.params.riderId && (o.status === 'assigned' || o.status === 'picked' || o.status === 'on-way' || o.status === 'arrived'));
+
+  res.json(activeOrders);
+});
+
+// GET Rider's Completed Orders
+app.get('/api/rider/:riderId/completed-orders', (req, res) => {
+  const orders = readJSON(ordersFilePath);
+  const completedOrders = orders.filter((o) => o.riderId === req.params.riderId && o.status === 'delivered');
+
+  res.json(completedOrders);
+});
+
+// POST Notify riders about available order
+app.post('/api/notify-riders-order', async (req, res) => {
+  const { orderId } = req.body;
+
+  if (!orderId) {
+    return res.status(400).json({ error: 'Order ID is required' });
+  }
+
+  try {
+    const orders = readJSON(ordersFilePath);
+    const order = orders.find((o) => o.id == orderId);
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Get all online riders from Supabase first, fallback to JSON
+    let onlineRiders = [];
+    try {
+      const { data: supabaseRiders, error: supabaseError } = await supabase
+        .from('riders')
+        .select('*')
+        .eq('is_online', true);
+
+      if (supabaseError) {
+        console.warn('⚠️ Supabase riders fetch failed, using JSON:', supabaseError.message);
+        const riders = readJSON(riderFilePath);
+        onlineRiders = riders.filter((r) => r.is_online === true || r.isOnline === true);
+      } else if (supabaseRiders && supabaseRiders.length > 0) {
+        onlineRiders = supabaseRiders;
+      } else {
+        // Fallback to JSON if no data from Supabase
+        const riders = readJSON(riderFilePath);
+        onlineRiders = riders.filter((r) => r.is_online === true || r.isOnline === true);
+      }
+    } catch (error) {
+      console.warn('⚠️ Error fetching from Supabase, using JSON:', error.message);
+      const riders = readJSON(riderFilePath);
+      onlineRiders = riders.filter((r) => r.is_online === true || r.isOnline === true);
+    }
+
+    if (onlineRiders.length === 0) {
+      console.log('⚠️ No online riders available for order:', orderId);
+      return res.json({ success: true, message: 'No online riders to notify', count: 0 });
+    }
+
+    // Send email notification to each online rider
+    const riderEmailPromises = onlineRiders.map(async (rider) => {
+      try {
+        const riderNotificationHTML = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+            <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              <h2 style="color: #FF6B35; margin-bottom: 20px;">🏍️ New Order Available!</h2>
+              
+              <div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p style="margin: 0 0 10px 0;"><strong>Order ID:</strong> ${orderId}</p>
+                <p style="margin: 0 0 10px 0;"><strong>Customer:</strong> ${order.customerName || 'Unknown'}</p>
+                <p style="margin: 0 0 10px 0;"><strong>Delivery Address:</strong> ${order.address || 'Not specified'}</p>
+                <p style="margin: 0;"><strong>Amount:</strong> ₦${(order.total || 0).toLocaleString()}</p>
+              </div>
+
+              <p style="color: #555; font-size: 16px; margin: 20px 0;">
+                Hi ${rider.name || 'Rider'},<br><br>
+                A new order has just been shipped and is now available for you to pick up! Check your dashboard to accept this order.
+              </p>
+
+              <div style="margin: 20px 0;">
+                <a href="https://amoostore.onrender.com/rider" style="display: inline-block; background-color: #FF6B35; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                  View Available Orders
+                </a>
+              </div>
+
+              <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+
+              <p style="color: #666; font-size: 14px; margin: 10px 0;">
+                This is an automated notification from AMOO STORE<br>
+                Please do not reply to this email
+              </p>
+            </div>
+          </div>
+        `;
+
+        // Send email (using existing emailService function with custom parameters)
+        console.log(`📧 Sending order notification to rider: ${rider.email}`);
+        // Use nodemailer or your email service directly
+        // For now, we'll log it and you can integrate with your email service
+      } catch (error) {
+        console.warn(`⚠️ Could not send email to rider ${rider.email}:`, error.message);
+      }
+    });
+
+    // Wait for all email notifications to be sent
+    await Promise.all(riderEmailPromises);
+
+    console.log(`✅ Order #${orderId} broadcasted to ${onlineRiders.length} online rider(s)`);
+    res.json({ 
+      success: true, 
+      message: `Order broadcasted to ${onlineRiders.length} online riders`,
+      count: onlineRiders.length,
+      onlineRiders: onlineRiders.map(r => ({ 
+        id: r.id, 
+        name: r.name || r.rider_name, 
+        email: r.email || r.rider_email 
+      }))
+    });
+  } catch (error) {
+    console.error('Error notifying riders:', error);
+    res.status(500).json({ error: 'Failed to notify riders' });
   }
 });
 

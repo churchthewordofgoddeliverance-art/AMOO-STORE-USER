@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rider - Delivery Management</title>
+    <link rel="stylesheet" href="rider.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">🚴 Rider Dashboard</h1>
+                <div class="header-actions">
+                    <span class="rider-status" id="riderStatus">
+                        <span class="status-dot online"></span>
+                        Online
+                    </span>
+                    <button class="btn-logout" id="logoutBtn">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <nav class="nav-menu">
+                    <a href="#" class="nav-item active" data-page="dashboard">
+                        📊 Dashboard
+                    </a>
+                    <a href="#" class="nav-item" data-page="available-orders">
+                        📦 Available Orders
+                    </a>
+                    <a href="#" class="nav-item" data-page="active-deliveries">
+                        🚚 Active Deliveries
+                    </a>
+                    <a href="#" class="nav-item" data-page="completed">
+                        ✅ Completed
+                    </a>
+                    <a href="#" class="nav-item" data-page="profile">
+                        👤 Profile
+                    </a>
+                </nav>
+            </aside>
+
+            <!-- Main Page Area -->
+            <main class="main-content">
+                <!-- Dashboard Page -->
+                <div id="dashboard" class="page active">
+                    <div class="page-header">
+                        <h2>Dashboard</h2>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">📦</div>
+                            <div class="stat-info">
+                                <h3>Available Orders</h3>
+                                <p class="stat-value" id="availableCount">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🚚</div>
+                            <div class="stat-info">
+                                <h3>Active Deliveries</h3>
+                                <p class="stat-value" id="activeCount">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-info">
+                                <h3>Completed Today</h3>
+                                <p class="stat-value" id="completedCount">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">⭐</div>
+                            <div class="stat-info">
+                                <h3>Earnings</h3>
+                                <p class="stat-value" id="earningsValue">₦0</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="recent-orders">
+                        <h3>Recent Orders</h3>
+                        <div id="recentOrdersList" class="orders-list">
+                            <!-- Orders will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Available Orders Page -->
+                <div id="available-orders" class="page">
+                    <div class="page-header">
+                        <h2>Available Orders</h2>
+                        <input type="text" id="searchOrders" class="search-input" placeholder="Search orders...">
+                    </div>
+                    
+                    <div id="availableOrdersList" class="orders-grid">
+                        <!-- Available orders will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Active Deliveries Page -->
+                <div id="active-deliveries" class="page">
+                    <div class="page-header">
+                        <h2>Active Deliveries</h2>
+                    </div>
+                    
+                    <div id="activeDeliveriesList" class="orders-list">
+                        <!-- Active deliveries will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Completed Page -->
+                <div id="completed" class="page">
+                    <div class="page-header">
+                        <h2>Completed Deliveries</h2>
+                        <select id="filterDate" class="filter-select">
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                        </select>
+                    </div>
+                    
+                    <div id="completedList" class="orders-list">
+                        <!-- Completed deliveries will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Profile Page -->
+                <div id="profile" class="page">
+                    <div class="page-header">
+                        <h2>Rider Profile</h2>
+                    </div>
+                    
+                    <div class="profile-container">
+                        <div class="profile-card">
+                            <div class="profile-header">
+                                <div class="profile-avatar">👤</div>
+                                <h3 id="profileName">Rider Name</h3>
+                                <p id="profilePhone">Phone: +234 800 000 0000</p>
+                            </div>
+                            
+                            <div class="profile-stats">
+                                <div class="profile-stat">
+                                    <label>Total Deliveries</label>
+                                    <p id="totalDeliveries">0</p>
+                                </div>
+                                <div class="profile-stat">
+                                    <label>This Month</label>
+                                    <p id="monthDeliveries">0</p>
+                                </div>
+                                <div class="profile-stat">
+                                    <label>Rating</label>
+                                    <p id="profileRating">4.8 ⭐</p>
+                                </div>
+                                <div class="profile-stat">
+                                    <label>Total Earnings</label>
+                                    <p id="totalEarnings">₦0</p>
+                                </div>
+                            </div>
+
+                            <div class="profile-info">
+                                <h4>Account Information</h4>
+                                <div class="info-item">
+                                    <span>Email:</span>
+                                    <p id="profileEmail">rider@email.com</p>
+                                </div>
+                                <div class="info-item">
+                                    <span>Vehicle Type:</span>
+                                    <p id="vehicleType">Motorcycle</p>
+                                </div>
+                                <div class="info-item">
+                                    <span>License Plate:</span>
+                                    <p id="licensePlate">ABC 123 XYZ</p>
+                                </div>
+                                <div class="info-item">
+                                    <span>Bank Account:</span>
+                                    <p id="bankAccount">Not set</p>
+                                </div>
+                                <div class="info-item">
+                                    <span>Joined Date:</span>
+                                    <p id="joinDate">-</p>
+                                </div>
+                            </div>
+
+                            <button class="btn-primary" id="editProfileBtn">Edit Profile</button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Order Detail Modal -->
+    <div id="orderModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeModal">&times;</span>
+            <h2 id="modalOrderId">Order #12345</h2>
+            
+            <div class="modal-body">
+                <div class="order-details">
+                    <h3>Customer Details</h3>
+                    <p><strong>Name:</strong> <span id="modalCustomerName">John Doe</span></p>
+                    <p><strong>Phone:</strong> <span id="modalCustomerPhone">+234 800 000 0000</span></p>
+                    <p><strong>Email:</strong> <span id="modalCustomerEmail">john@example.com</span></p>
+                    
+                    <h3>Delivery Address</h3>
+                    <p id="modalDeliveryAddress">123 Main Street, Lagos</p>
+                    
+                    <h3>Items</h3>
+                    <ul id="modalItemsList">
+                        <!-- Items will be populated here -->
+                    </ul>
+                    
+                    <h3>Payment Info</h3>
+                    <p><strong>Amount:</strong> ₦<span id="modalAmount">5,000</span></p>
+                    <p><strong>Payment Method:</strong> <span id="modalPaymentMethod">Cash on Delivery</span></p>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn-primary" id="acceptOrderModalBtn">Accept Order</button>
+                    <button class="btn-danger" id="rejectOrderBtn">Reject</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delivery Code Modal (for user) -->
+    <div id="codeModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeCodeModal">&times;</span>
+            <h2>Enter Delivery Code</h2>
+            
+            <div class="modal-body">
+                <p>The rider has reached your location. Please enter the delivery code they provided:</p>
+                
+                <div class="code-input-group">
+                    <input type="text" id="deliveryCode" placeholder="Enter 4-digit code" maxlength="4">
+                    <p id="codeError" class="error-message"></p>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn-primary" id="verifyCodeBtn">Verify Code</button>
+                    <button class="btn-secondary" id="cancelCodeBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delivery Status Modal (for rider) -->
+    <div id="deliveryModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeDeliveryModal">&times;</span>
+            <h2>Update Delivery Status</h2>
+            
+            <div class="modal-body">
+                <div class="status-options">
+                    <div class="status-option">
+                        <input type="radio" id="status-picked" name="status" value="picked">
+                        <label for="status-picked">📍 Picked Up</label>
+                    </div>
+                    <div class="status-option">
+                        <input type="radio" id="status-on-way" name="status" value="on-way">
+                        <label for="status-on-way">🚚 On the Way</label>
+                    </div>
+                    <div class="status-option">
+                        <input type="radio" id="status-arrived" name="status" value="arrived">
+                        <label for="status-arrived">📍 Arrived at Location</label>
+                    </div>
+                </div>
+
+                <div id="codeSection" class="code-section" style="display: none;">
+                    <h4>Generate Delivery Code</h4>
+                    <p>Rider code will be sent to customer email:</p>
+                    <div id="generatedCode" class="generated-code">-</div>
+                    <p id="codeMessage" style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;"></p>
+                </div>
+
+                <textarea id="statusNotes" placeholder="Add notes (optional)" rows="4"></textarea>
+
+                <div class="modal-actions">
+                    <button class="btn-primary" id="updateStatusBtn">Update Status</button>
+                    <button class="btn-secondary" id="cancelStatusBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Registration Modal -->
+    <div id="registrationModal" class="modal show">
+        <div class="modal-content registration-form">
+            <h2>Rider Registration</h2>
+            <div class="modal-body">
+                <form id="registrationForm">
+                    <h3>Personal Information</h3>
+                    <input type="text" id="regName" placeholder="Full Name" required>
+                    <input type="email" id="regEmail" placeholder="Email Address" required>
+                    <input type="tel" id="regPhone" placeholder="Phone Number" required>
+                    <input type="password" id="regPassword" placeholder="Password" required>
+                    <input type="password" id="regConfirmPassword" placeholder="Confirm Password" required>
+
+                    <h3>Vehicle Information</h3>
+                    <select id="regVehicleType" required>
+                        <option value="">Select Vehicle Type</option>
+                        <option value="motorcycle">Motorcycle</option>
+                        <option value="car">Car</option>
+                        <option value="van">Van</option>
+                        <option value="bicycle">Bicycle</option>
+                    </select>
+                    <input type="text" id="regLicensePlate" placeholder="License Plate Number" required>
+
+                    <h3>Bank Information</h3>
+                    <input type="text" id="regBankName" placeholder="Bank Name" required>
+                    <input type="text" id="regAccountNumber" placeholder="Account Number" required>
+                    <input type="text" id="regAccountName" placeholder="Account Name" required>
+
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 1rem;">Register</button>
+                </form>
+                <p id="regError" class="error-message"></p>
+                <p id="regSuccess" class="success-message"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <h2>Rider Login</h2>
+            <div class="modal-body">
+                <form id="loginForm">
+                    <input type="email" id="loginEmail" placeholder="Email Address" required>
+                    <input type="password" id="loginPassword" placeholder="Password" required>
+                    <button type="submit" class="btn-primary">Login</button>
+                </form>
+                <p id="loginError" class="error-message"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="rider.js"></script>
+</body>
+</html>

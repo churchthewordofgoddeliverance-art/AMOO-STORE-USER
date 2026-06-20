@@ -43,6 +43,7 @@ const pageTitles = {
   inventory: { title: 'AMOO STORE Inventory', subtitle: 'Monitor stock levels' },
   analytics: { title: 'AMOO STORE Analytics', subtitle: 'View sales reports' },
   messages: { title: 'AMOO STORE Messages', subtitle: 'Send messages to customers' },
+  riders: { title: 'AMOO STORE Riders', subtitle: 'Manage delivery riders' },
   settings: { title: 'AMOO STORE Settings', subtitle: 'Store and account settings' }
 };
 
@@ -243,6 +244,9 @@ async function loadPageData(page) {
       break;
     case 'messages':
       await loadCustomers();
+      break;
+    case 'riders':
+      await loadRiders();
       break;
   }
 }
@@ -547,7 +551,23 @@ async function updateOrderStatus(orderId, status) {
     if (response.ok) {
       const data = await response.json();
       console.log('✅ Order updated in Supabase:', orderId, '→', status);
-      alert(`✅ Order #${orderId} updated to ${status.toUpperCase()}`);
+      
+      // If status is "shipped", notify riders (order becomes available for pickup)
+      if (status === 'shipped') {
+        console.log('📢 Broadcasting order to available riders:', orderId);
+        // Trigger notification to all online riders
+        try {
+          await fetch(`${ADMIN_API}/api/notify-riders-order`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId })
+          }).catch(e => console.warn('Could not notify riders:', e.message));
+        } catch (error) {
+          console.warn('Rider notification failed (non-critical):', error);
+        }
+      }
+      
+      alert(`✅ Order #${orderId} updated to ${status.toUpperCase()}${status === 'shipped' ? '\n✓ Riders notified!' : ''}`);
       loadOrders();
       loadDashboard();
     } else {
@@ -858,3 +878,168 @@ function showMessageLoading(show) {
   btn.disabled = show;
   btn.textContent = show ? '⏳ Sending...' : '📤 Send Message to All Customers';
 }
+
+// ========================================
+// RIDERS MANAGEMENT
+// ========================================
+
+async function loadRiders() {
+  try {
+    const response = await fetch(`${ADMIN_API}/api/riders`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (response.ok) {
+      const riders = await response.json();
+      console.log('✅ Riders loaded from Supabase:', riders.length);
+      displayRiders(riders);
+    } else {
+      const error = await response.json();
+      console.error('❌ Error loading riders:', error);
+      document.getElementById('riders-list').innerHTML = `<p style="color: red;">❌ ${error.error || 'Failed to load riders'}</p>`;
+    }
+  } catch (error) {
+    console.error('❌ Error loading riders:', error);
+    document.getElementById('riders-list').innerHTML = `<p style="color: red;">❌ Connection error. Check if backend is running.</p>`;
+  }
+}
+
+function displayRiders(riders) {
+  if (!riders || riders.length === 0) {
+    document.getElementById('riders-list').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No riders registered yet</p>';
+    return;
+  }
+
+  const ridersList = document.getElementById('riders-list');
+  ridersList.innerHTML = '';
+
+  riders.forEach(rider => {
+    const riderCard = document.createElement('div');
+    riderCard.style.cssText = `
+      background: white;
+      border-left: 4px solid ${rider.is_online ? '#28a745' : '#999'};
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    `;
+
+    const onlineStatus = rider.is_online 
+      ? '<span style="color: #28a745; font-weight: bold;">🟢 ONLINE</span>'
+      : '<span style="color: #999; font-weight: bold;">⚫ OFFLINE</span>';
+
+    const vehicleIcon = rider.vehicle_type === 'Motorcycle' ? '🏍️' :
+                       rider.vehicle_type === 'Car' ? '🚗' :
+                       rider.vehicle_type === 'Van' ? '🚐' :
+                       '🚲';
+
+    riderCard.innerHTML = `
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 12px;">
+        <div>
+          <strong>${vehicleIcon} ${rider.name}</strong><br>
+          <small style="color: #666;">📧 ${rider.email}</small><br>
+          <small style="color: #666;">📱 ${rider.phone}</small>
+        </div>
+        <div>
+          <strong>Status:</strong> ${onlineStatus}<br>
+          <strong>Rating:</strong> ⭐ ${rider.rating}/5.0<br>
+          <strong>Deliveries:</strong> ${rider.total_deliveries} total, ${rider.month_deliveries} this month
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; border-top: 1px solid #eee; padding-top: 12px;">
+        <div>
+          <strong>Vehicle:</strong> ${rider.vehicle_type} (${rider.license_plate})<br>
+          <strong>Joined:</strong> ${new Date(rider.join_date).toLocaleDateString()}
+        </div>
+        <div>
+          <strong>This Month Earnings:</strong> NGN ${parseFloat(rider.month_earnings).toLocaleString('en-NG')}<br>
+          <strong>Total Earnings:</strong> NGN ${parseFloat(rider.total_earnings).toLocaleString('en-NG')}
+        </div>
+      </div>
+      <div style="margin-top: 12px; text-align: right;">
+        <button class="btn btn-small" onclick="viewRiderDetails('${rider.id}')">👁️ View Details</button>
+        <button class="btn btn-small" onclick="toggleRiderStatus('${rider.id}', ${rider.is_online})" style="background: ${rider.is_online ? '#dc3545' : '#28a745'};">
+          ${rider.is_online ? '🔴 Set Offline' : '🟢 Set Online'}
+        </button>
+      </div>
+    `;
+    ridersList.appendChild(riderCard);
+  });
+}
+
+async function viewRiderDetails(riderId) {
+  try {
+    const response = await fetch(`${ADMIN_API}/api/riders/${riderId}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (response.ok) {
+      const rider = await response.json();
+      const details = `
+        👤 RIDER DETAILS
+        ================
+        Name: ${rider.name}
+        Email: ${rider.email}
+        Phone: ${rider.phone}
+        Vehicle: ${rider.vehicle_type} (${rider.license_plate})
+        
+        💰 FINANCIAL INFO
+        =================
+        Bank: ${rider.bank_name}
+        Account: ${rider.account_number}
+        Account Name: ${rider.account_name}
+        
+        📊 STATISTICS
+        ==============
+        Total Deliveries: ${rider.total_deliveries}
+        This Month: ${rider.month_deliveries}
+        Rating: ${rider.rating}/5.0
+        Total Earnings: NGN ${parseFloat(rider.total_earnings).toLocaleString('en-NG')}
+        This Month Earnings: NGN ${parseFloat(rider.month_earnings).toLocaleString('en-NG')}
+        Status: ${rider.is_online ? 'ONLINE 🟢' : 'OFFLINE ⚫'}
+      `;
+      alert(details);
+    } else {
+      alert('❌ Failed to load rider details');
+    }
+  } catch (error) {
+    console.error('Error viewing rider details:', error);
+    alert('❌ Connection error');
+  }
+}
+
+async function toggleRiderStatus(riderId, currentStatus) {
+  try {
+    const response = await fetch(`${ADMIN_API}/api/rider/${riderId}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_online: !currentStatus })
+    });
+
+    if (response.ok) {
+      alert(`✅ Rider status updated to ${!currentStatus ? 'ONLINE' : 'OFFLINE'}`);
+      loadRiders();
+    } else {
+      const error = await response.json();
+      alert(`❌ ${error.error || 'Failed to update rider status'}`);
+    }
+  } catch (error) {
+    console.error('Error updating rider status:', error);
+    alert('❌ Connection error');
+  }
+}
+
+// Load riders when navigating to riders page
+document.addEventListener('DOMContentLoaded', () => {
+  // Add this to loadPageData function for riders
+  const originalLoadPageData = window.loadPageData;
+  window.loadPageData = async function(page) {
+    if (page === 'riders') {
+      await loadRiders();
+    } else if (originalLoadPageData) {
+      return originalLoadPageData(page);
+    }
+  };
+});

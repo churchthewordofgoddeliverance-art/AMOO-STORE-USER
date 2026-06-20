@@ -9,7 +9,7 @@ const SENDER_NAME = 'Amoo Store';
 // Test Brevo connection (non-blocking)
 setTimeout(() => {
   if (!BREVO_API_KEY) {
-    console.warn('⚠️  BREVO_API_KEY not configured. Please set it in your environment variables.');
+    console.warn('⚠️  BREVO_API_KEY not configured. Please set it in your Render environment variables.');
   } else {
     console.log('✅ Email service ready - using Brevo API with:', SENDER_EMAIL);
   }

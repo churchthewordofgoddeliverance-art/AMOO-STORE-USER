@@ -9,7 +9,7 @@ async function fetchCustomerOrders() {
   }
 
   try {
-    const response = await fetch(`https://amoostore.onrender.com/api/orders/${accountProfile.email}`);
+    const response = await fetch(`https://amoo-store-user-i18d.onrender.com/api/orders/${accountProfile.email}`);
     const orders = await response.json();
 
     if (!orders || orders.length === 0) {
@@ -34,7 +34,7 @@ async function fetchCustomerOrders() {
 // Fetch latest order status from Supabase
 async function refreshOrderStatus(orderId) {
   try {
-    const response = await fetch(`https://amoostore.onrender.com/api/orders/${orderId}/status`);
+    const response = await fetch(`https://amoo-store-user-i18d.onrender.com/api/orders/${orderId}/status`);
     if (!response.ok) {
       console.error('Error fetching order status:', response.status);
       alert('Unable to fetch latest status. Please try again.');

@@ -1,5 +1,5 @@
 # API redirects
-/api/*                                      https://amoostore.onrender.com/api/:splat  200  !
+/api/*                                      https://amoo-store-user-i18d.onrender.com/api/:splat  200  !
 
 # Admin routes
 /admin                                      /admin/admin.html                          200

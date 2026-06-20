@@ -1,4 +1,4 @@
-const ADMIN_API = 'https://amoostore.onrender.com';
+const ADMIN_API = 'https://amoo-store-user-i18d.onrender.com';
 let adminSession = null;
 
 // DOM Elements

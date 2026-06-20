@@ -78,7 +78,7 @@ async function loadProductsFromBackend() {
   if (document.querySelector('[data-page="shop"]')) {
     try {
       console.log('🛍️ Fetching products from Supabase...');
-      const response = await fetch('https://amoostore.onrender.com/api/products');
+      const response = await fetch('https://amoo-store-user-i18d.onrender.com/api/products');
       if (response.ok) {
         PRODUCTS = await response.json();
         console.log(`✅ Loaded ${PRODUCTS.length} products from Supabase`);
@@ -1034,7 +1034,7 @@ Please confirm my order. I will proceed with bank transfer payment.`;
           localStorage.setItem('ademola-cloth-house-orders', JSON.stringify(orders));
 
           // Also save to backend
-          fetch('https://amoostore.onrender.com/api/orders', {
+          fetch('https://amoo-store-user-i18d.onrender.com/api/orders', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(order)

@@ -2194,26 +2194,35 @@ app.post('/api/notify-riders-order', async (req, res) => {
 
         // Send email using Brevo
         console.log(`📧 Sending order notification to rider: ${riderEmail}`);
-        await sendEmailViaBrevo(
-          riderEmail,
-          `🏍️ New Order Available - #${orderId}`,
-          riderNotificationHTML,
-          riderNotificationText
-        );
-        console.log(`✅ Email sent to rider: ${riderEmail}`);
+        try {
+          await sendEmailViaBrevo(
+            riderEmail,
+            `🏍️ New Order Available - #${orderId}`,
+            riderNotificationHTML,
+            riderNotificationText
+          );
+          console.log(`✅ Email sent to rider: ${riderEmail}`);
+        } catch (emailError) {
+          console.error(`❌ Email failed for rider ${riderEmail}:`, emailError.response?.data?.message || emailError.message);
+          // Continue anyway - the order is still in the system
+        }
       } catch (error) {
-        console.warn(`⚠️ Could not send email to rider ${rider.email || rider.rider_email}:`, error.message);
+        console.warn(`⚠️ Error processing rider ${rider.email || rider.rider_email}:`, error.message);
       }
     });
 
-    // Wait for all email notifications to be sent
-    await Promise.all(riderEmailPromises);
+    // Wait for all email notifications to be sent (don't let one failure stop others)
+    const results = await Promise.allSettled(riderEmailPromises);
+    const successCount = results.filter(r => r.status === 'fulfilled').length;
+    const failureCount = results.filter(r => r.status === 'rejected').length;
 
-    console.log(`✅ Order #${orderId} broadcasted to ${onlineRiders.length} online rider(s)`);
+    console.log(`✅ Order #${orderId} broadcasted to ${onlineRiders.length} online rider(s) | Success: ${successCount} | Failed: ${failureCount}`);
     res.json({ 
       success: true, 
-      message: `Order broadcasted to ${onlineRiders.length} online riders`,
+      message: `Order broadcasted to ${onlineRiders.length} online riders (${successCount} emails sent, ${failureCount} failed)`,
       count: onlineRiders.length,
+      successCount,
+      failureCount,
       onlineRiders: onlineRiders.map(r => ({ 
         id: r.id, 
         name: r.name || r.rider_name, 

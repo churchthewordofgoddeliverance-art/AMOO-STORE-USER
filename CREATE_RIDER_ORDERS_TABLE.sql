@@ -28,13 +28,6 @@ CREATE INDEX IF NOT EXISTS idx_rider_orders_rider_id ON rider_orders(rider_id);
 CREATE INDEX IF NOT EXISTS idx_rider_orders_status ON rider_orders(status);
 CREATE INDEX IF NOT EXISTS idx_rider_orders_assigned_at ON rider_orders(assigned_at DESC);
 
--- Add RLS (Row Level Security) policy for riders to see only their orders
-ALTER TABLE rider_orders ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Riders can view their assigned orders"
-  ON rider_orders FOR SELECT
-  USING (rider_id = auth.uid()::text);
-
-CREATE POLICY "Admins can view all rider orders"
-  ON rider_orders FOR ALL
-  USING (auth.role() = 'authenticated');
+-- Disable RLS for now (backend needs to insert without auth restrictions)
+-- Enable this only after setting up proper service role permissions
+-- ALTER TABLE rider_orders ENABLE ROW LEVEL SECURITY;

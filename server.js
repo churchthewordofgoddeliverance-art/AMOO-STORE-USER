@@ -1021,35 +1021,53 @@ app.put('/api/orders/:orderId/status', async (req, res) => {
       orders[orderIndex].status = status;
       writeJSON(ordersFilePath, orders);
       
-      // If status is "shipped", create entry in order_riders table for riders to pick up
+      // If status is "shipped", create entries in order_riders table for ALL online riders
       if (status === 'shipped') {
         try {
-          // First check if order_riders entry exists
-          const { data: existingEntry, error: checkError } = await supabase
-            .from('order_riders')
-            .select('id')
-            .eq('order_id', req.params.orderId)
-            .single();
+          console.log('🏍️ Creating order_riders entries for all online riders...');
           
-          if (!existingEntry && !checkError) {
-            // Entry doesn't exist, create it
-            const { data: newEntry, error: insertError } = await supabase
+          // Get all online riders from Supabase
+          const { data: onlineRiders, error: ridersError } = await supabase
+            .from('riders')
+            .select('*')
+            .eq('is_online', true);
+          
+          if (ridersError) {
+            console.warn('⚠️ Failed to fetch online riders:', ridersError.message);
+          } else if (onlineRiders && onlineRiders.length > 0) {
+            console.log(`📢 Found ${onlineRiders.length} online riders`);
+            
+            // Create an entry for each online rider with full order details
+            const orderRiderEntries = onlineRiders.map((rider) => ({
+              order_id: req.params.orderId,
+              rider_id: rider.id,
+              customer_name: orders[orderIndex].customerName || orders[orderIndex].customer_name || 'Unknown',
+              customer_phone: orders[orderIndex].phone || orders[orderIndex].customer_phone || '',
+              delivery_address: orders[orderIndex].address || orders[orderIndex].delivery_address || '',
+              delivery_city: orders[orderIndex].city || '',
+              delivery_state: orders[orderIndex].state || '',
+              order_total: orders[orderIndex].total || 0,
+              order_items: JSON.stringify(orders[orderIndex].items || []),
+              customer_email: orders[orderIndex].customerEmail || orders[orderIndex].customer_email || '',
+              status: 'assigned',
+              assigned_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }));
+            
+            // Insert all entries
+            const { data: insertedEntries, error: insertError } = await supabase
               .from('order_riders')
-              .insert([{
-                order_id: req.params.orderId,
-                rider_id: null, // Available for any rider
-                status: 'assigned',
-                assigned_at: new Date().toISOString(),
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              }])
+              .insert(orderRiderEntries)
               .select();
             
             if (insertError) {
-              console.warn('⚠️ Failed to create order_riders entry:', insertError.message);
+              console.warn('⚠️ Failed to create order_riders entries:', insertError.message);
             } else {
-              console.log('✅ Created order_riders entry for order:', req.params.orderId);
+              console.log(`✅ Created ${insertedEntries?.length || orderRiderEntries.length} order_riders entries with full order details`);
             }
+          } else {
+            console.log('⚠️ No online riders available to assign order');
           }
         } catch (orderRiderError) {
           console.warn('⚠️ Error managing order_riders:', orderRiderError.message);

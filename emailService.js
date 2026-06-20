@@ -428,7 +428,7 @@ async function sendAdminOrderNotification(recipientEmail, orderId, customerName,
         
         <hr style="border: 1px solid #ddd;">
         
-        <p><a href="https://amoo-store-user.onrender.com/admin" style="background: #e74c3c; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block;">View in Admin Panel</a></p>
+        <p><a href="https://amoostore.onrender.com/admin" style="background: #e74c3c; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block;">View in Admin Panel</a></p>
         
         <p style="color: #7f8c8d; font-size: 12px;">AMOO STORE | Premium Fashion Management</p>
       </div>
@@ -469,7 +469,7 @@ async function sendAdminMessageNotification(recipientEmail, senderName, messageC
         
         <hr style="border: 1px solid #ddd;">
         
-        <p><a href="https://amoo-store-user.onrender.com/admin" style="background: #3498db; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block;">Reply in Admin Panel</a></p>
+        <p><a href="https://amoostore.onrender.com/admin" style="background: #3498db; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block;">Reply in Admin Panel</a></p>
         
         <p style="color: #7f8c8d; font-size: 12px;">AMOO STORE | Premium Fashion Management</p>
       </div>

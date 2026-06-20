@@ -1037,17 +1037,10 @@ app.put('/api/orders/:orderId/status', async (req, res) => {
           } else if (onlineRiders && onlineRiders.length > 0) {
             console.log(`📢 Found ${onlineRiders.length} online riders`);
             
-            // Create an entry for each online rider with full order details
+            // Create an entry for each online rider with order assignment
             const orderRiderEntries = onlineRiders.map((rider) => ({
               order_id: req.params.orderId,
               rider_id: rider.id,
-              customer_name: orders[orderIndex].customerName || orders[orderIndex].customer_name || 'Unknown',
-              customer_phone: orders[orderIndex].phone || orders[orderIndex].customer_phone || '',
-              delivery_address: orders[orderIndex].address || orders[orderIndex].delivery_address || '',
-              delivery_city: orders[orderIndex].city || '',
-              delivery_state: orders[orderIndex].state || '',
-              order_total: orders[orderIndex].total || 0,
-              order_items: JSON.stringify(orders[orderIndex].items || []),
               status: 'assigned',
               assigned_at: new Date().toISOString(),
               created_at: new Date().toISOString(),
@@ -1063,7 +1056,7 @@ app.put('/api/orders/:orderId/status', async (req, res) => {
             if (insertError) {
               console.warn('⚠️ Failed to create order_riders entries:', insertError.message);
             } else {
-              console.log(`✅ Created ${insertedEntries?.length || orderRiderEntries.length} order_riders entries with full order details`);
+              console.log(`✅ Created ${insertedEntries?.length || orderRiderEntries.length} order_riders entries for assigned riders`);
             }
           } else {
             console.log('⚠️ No online riders available to assign order');
@@ -2154,13 +2147,6 @@ app.post('/api/notify-riders-order', async (req, res) => {
       const orderRiderEntries = onlineRiders.map((rider) => ({
         order_id: orderId,
         rider_id: rider.id,
-        customer_name: order.customerName || order.customer_name || 'Unknown',
-        customer_phone: order.phone || order.customer_phone || '',
-        delivery_address: order.address || order.delivery_address || '',
-        delivery_city: order.city || '',
-        delivery_state: order.state || '',
-        order_total: order.total || 0,
-        order_items: JSON.stringify(order.items || []),
         status: 'assigned',
         assigned_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
@@ -2176,7 +2162,7 @@ app.post('/api/notify-riders-order', async (req, res) => {
       if (insertError) {
         console.warn('⚠️ Failed to create order_riders entries in Supabase:', insertError.message);
       } else {
-        console.log(`✅ Created ${insertedEntries?.length || orderRiderEntries.length} order_riders entries in Supabase with full order details`);
+        console.log(`✅ Created ${insertedEntries?.length || orderRiderEntries.length} order_riders entries in Supabase`);
       }
     } catch (orderRiderError) {
       console.warn('⚠️ Error creating order_riders entries:', orderRiderError.message);

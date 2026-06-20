@@ -2156,15 +2156,39 @@ app.post('/api/rider-orders/:riderOrderId/accept', async (req, res) => {
   try {
     const { riderOrderId } = req.params;
     const { riderId } = req.body;
-    
+
+    if (!riderOrderId) {
+      return res.status(400).json({ error: 'Rider order ID is required' });
+    }
+
     if (!riderId) {
       return res.status(400).json({ error: 'Rider ID is required' });
     }
-    
-    // Update rider_orders to mark as accepted by this rider
+
+    // Ensure the rider order exists before updating
+    const { data: existingOrder, error: fetchError } = await supabase
+      .from('rider_orders')
+      .select('id, order_id, status')
+      .eq('id', riderOrderId)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('Failed to fetch rider order for accept:', fetchError.message);
+      return res.status(500).json({ error: 'Failed to accept order' });
+    }
+
+    if (!existingOrder) {
+      return res.status(404).json({ error: 'Rider order not found' });
+    }
+
+    // Prevent re-accepting an already accepted or delivered order
+    if (existingOrder.status && existingOrder.status !== 'shipped') {
+      return res.status(400).json({ error: 'Order cannot be accepted in its current status' });
+    }
+
     const { data: updatedOrder, error: updateError } = await supabase
       .from('rider_orders')
-      .update({ 
+      .update({
         status: 'accepted',
         accepted_by_rider_id: riderId,
         accepted_at: new Date().toISOString(),
@@ -2172,13 +2196,17 @@ app.post('/api/rider-orders/:riderOrderId/accept', async (req, res) => {
       })
       .eq('id', riderOrderId)
       .select()
-      .single();
-    
+      .maybeSingle();
+
     if (updateError) {
       console.error('Failed to accept order:', updateError.message);
       return res.status(500).json({ error: 'Failed to accept order' });
     }
-    
+
+    if (!updatedOrder) {
+      return res.status(500).json({ error: 'Failed to accept order' });
+    }
+
     console.log(`✅ Rider ${riderId} accepted order ${updatedOrder.order_id}`);
     res.json({ success: true, message: 'Order accepted', order: updatedOrder });
   } catch (error) {

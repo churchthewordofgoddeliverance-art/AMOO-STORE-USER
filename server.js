@@ -1426,12 +1426,16 @@ app.put('/api/rider/:riderId/status', async (req, res) => {
   const { is_online } = req.body;
   const riderId = req.params.riderId;
 
+  console.log('📢 STATUS UPDATE REQUEST:', { riderId, is_online });
+
   if (is_online === undefined) {
+    console.log('❌ is_online is undefined');
     return res.status(400).json({ error: 'is_online status is required' });
   }
 
   try {
     // Update in Supabase
+    console.log('🔄 Updating Supabase rider:', riderId, '→', is_online);
     const { data, error } = await supabase
       .from('riders')
       .update({ is_online: is_online, updated_at: new Date().toISOString() })
@@ -1439,21 +1443,28 @@ app.put('/api/rider/:riderId/status', async (req, res) => {
       .select();
 
     if (error) {
+      console.error('❌ Supabase update error:', error.message);
       console.warn('⚠️ Supabase update failed, trying JSON:', error.message);
       // Fallback to JSON
       const riders = readJSON(riderFilePath);
       const riderIndex = riders.findIndex(r => r.id === riderId);
-      if (riderIndex === -1) return res.status(404).json({ error: 'Rider not found' });
+      if (riderIndex === -1) {
+        console.log('❌ Rider not found in JSON');
+        return res.status(404).json({ error: 'Rider not found' });
+      }
       riders[riderIndex].is_online = is_online;
       writeJSON(riderFilePath, riders);
+      console.log('✅ Updated rider in JSON file:', riderId);
       return res.json({ success: true, rider: riders[riderIndex] });
     }
 
     if (!data || data.length === 0) {
+      console.log('❌ No data returned from Supabase');
       return res.status(404).json({ error: 'Rider not found' });
     }
 
-    console.log('✅ Rider status updated:', riderId, '→', is_online ? 'ONLINE' : 'OFFLINE');
+    console.log('✅ Rider status updated in Supabase:', riderId, '→', is_online ? 'ONLINE' : 'OFFLINE');
+    console.log('📊 Updated data:', data[0]);
     res.json({ success: true, rider: data[0] });
   } catch (error) {
     console.error('❌ Error updating rider status:', error);

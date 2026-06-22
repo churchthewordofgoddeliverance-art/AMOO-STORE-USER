@@ -473,15 +473,10 @@ function createOrderCard(order) {
     const items = Array.isArray(order.items) ? order.items : [];
     const itemCount = items.length || 0;
     
-    // Check if this order has been accepted (exists in delivery_orders)
-    const isAccepted = order.deliveryOrderId || currentDeliveryStatus[order.riderOrderId];
-    
-    const buttonText = isAccepted ? '🔐 Request Code' : '✓ Accept';
-    
     card.innerHTML = `
         <div class="order-header">
             <span class="order-id">${order.id}</span>
-            <span class="order-status status-pending">${isAccepted ? '📋 Accepted' : '📋 Available'}</span>
+            <span class="order-status status-pending">📋 Available</span>
         </div>
         <div class="order-customer">
             <p class="customer-name">${order.customerName}</p>
@@ -495,70 +490,30 @@ function createOrderCard(order) {
             <span class="order-amount">₦${(order.total || 0).toLocaleString()}</span>
             <button class="btn-action" style="
                 padding: 0.5rem 1rem;
-                background-color: ${isAccepted ? '#27ae60' : '#3498db'};
+                background-color: #27ae60;
                 color: white;
                 border: none;
                 border-radius: 4px;
                 cursor: pointer;
                 font-weight: bold;
                 font-size: 0.85rem;
-            ">${buttonText}</button>
+            ">🔐 Request Code</button>
         </div>
     `;
 
     const button = card.querySelector('.btn-action');
     button.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (isAccepted) {
-            // Request Code flow
-            currentOrder = order;
-            currentRiderOrderId = order.deliveryOrderId || order.riderOrderId;
-            openDeliveryDetailModal(order);
-        } else {
-            // Accept flow
-            acceptOrderFlow(order);
-        }
+        // Go straight to Request Code flow - no Accept step
+        currentOrder = order;
+        currentRiderOrderId = order.riderOrderId;
+        openDeliveryDetailModal(order);
     });
 
     return card;
 }
 
 // Accept order and transition to Request Code flow
-async function acceptOrderFlow(order) {
-    try {
-        const riderId = localStorage.getItem('riderId');
-        const token = localStorage.getItem('riderToken');
-        
-        const response = await fetch(`${API_BASE}/api/rider-orders/${order.riderOrderId}/accept`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ riderId })
-        });
-
-        if (response.ok) {
-            const acceptedOrder = await response.json();
-            showNotification('✅ Order accepted! Now request code from customer.', 'success');
-            
-            // Mark as accepted locally
-            currentDeliveryStatus[order.riderOrderId] = 'accepted';
-            order.deliveryOrderId = acceptedOrder.order?.id;
-            
-            // Reload available orders to show updated button
-            await loadAvailableOrders();
-            updateDashboardStats();
-        } else {
-            const error = await response.json();
-            showNotification(`❌ ${error.error || 'Failed to accept order'}`, 'error');
-        }
-    } catch (error) {
-        console.error('Error accepting order:', error);
-        showNotification('❌ Error accepting order. Try again.', 'error');
-    }
-}
-
 function filterAvailableOrders(e) {
     const searchTerm = e.target.value.toLowerCase();
     const container = document.getElementById('availableOrdersList');
@@ -1049,8 +1004,25 @@ async function sendDeliveryCodeToCustomer() {
 
     try {
         const token = localStorage.getItem('riderToken');
+        const riderId = localStorage.getItem('riderId');
         
-        // Generate code
+        // Step 1: Accept order first
+        const acceptResponse = await fetch(`${API_BASE}/api/rider-orders/${currentRiderOrderId}/accept`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ riderId })
+        });
+
+        if (!acceptResponse.ok) {
+            const error = await acceptResponse.json();
+            showNotification(error.error || 'Failed to accept order', 'danger');
+            return;
+        }
+
+        // Step 2: Generate and send code
         const deliveryCode = generateDeliveryCode();
         
         // Send code to backend - it will store in delivery_orders and send email

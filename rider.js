@@ -652,45 +652,6 @@ async function sendDeliveryCode() {
 }
 
 // ===== VERIFY DELIVERY CODE =====
-async function verifyDeliveryCode() {
-    if (!currentRiderOrderId) return;
-
-    try {
-        const code = document.getElementById('deliveryCodeInput').value.trim();
-        if (!code) {
-            showNotification('Please enter the code', 'warning');
-            return;
-        }
-
-        const token = localStorage.getItem('riderToken');
-        
-        const response = await fetch(`${API_BASE}/api/rider-orders/${currentRiderOrderId}/verify-code`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ code })
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            showNotification('Delivery verified! Order marked as complete.', 'success');
-            closeCodeVerificationModal();
-            closeOrderModal();
-            await loadActiveDeliveries();
-            await loadCompletedDeliveries();
-            updateDashboardStats();
-        } else {
-            const error = await response.json();
-            showNotification(error.error || 'Invalid code', 'danger');
-        }
-    } catch (error) {
-        console.error('Error verifying code:', error);
-        showNotification('Error verifying code', 'danger');
-    }
-}
-
 function rejectOrder() {
     closeOrderModal();
     showNotification('Order rejected', 'info');

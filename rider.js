@@ -897,7 +897,7 @@ function showCodeVerificationModal() {
             />
             <div id="codeVerifyError" style="color: #dc3545; margin: 0.5rem 0; font-size: 0.9rem;"></div>
             <div style="display: flex; gap: 0.5rem;">
-                <button onclick="verifyDeliveryCodeFromModal()" style="
+                <button id="verifyCodeBtn" style="
                     flex: 1;
                     padding: 0.75rem;
                     background-color: #27ae60;
@@ -907,7 +907,7 @@ function showCodeVerificationModal() {
                     cursor: pointer;
                     font-weight: bold;
                 ">Verify Code</button>
-                <button onclick="closeCodeVerificationModal()" style="
+                <button id="cancelCodeBtn" style="
                     flex: 1;
                     padding: 0.75rem;
                     background-color: #95a5a6;
@@ -922,6 +922,34 @@ function showCodeVerificationModal() {
     `;
     
     document.body.appendChild(modal);
+    
+    // Attach event listeners - more reliable than inline onclick
+    const verifyBtn = document.getElementById('verifyCodeBtn');
+    const cancelBtn = document.getElementById('cancelCodeBtn');
+    
+    if (verifyBtn) {
+        verifyBtn.addEventListener('click', verifyDeliveryCodeFromModal);
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeCodeVerificationModal);
+    }
+    
+    // Also stop propagation on the modal content to prevent closing when clicking buttons
+    const modalContent = modal.querySelector('div');
+    if (modalContent) {
+        modalContent.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+    
+    // Close modal if clicking on background overlay
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeCodeVerificationModal();
+        }
+    });
+    
     document.getElementById('deliveryCodeInput').focus();
 }
 

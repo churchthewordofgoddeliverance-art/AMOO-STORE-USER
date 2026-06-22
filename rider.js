@@ -61,12 +61,12 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
 });
 
-function initializeApp() {
+async function initializeApp() {
     const riderId = localStorage.getItem('riderId');
     const riderToken = localStorage.getItem('riderToken');
     
-    // Initialize Supabase first
-    initializeRiderSupabase();
+    // Initialize Supabase first and wait for it
+    await initializeRiderSupabase();
     
     // Hide both modals first
     document.getElementById('registrationModal').classList.remove('show');
@@ -77,7 +77,7 @@ function initializeApp() {
         showRegistrationModal();
     } else {
         // Session exists - load rider data and show dashboard
-        loadRiderData();
+        await loadRiderData();
         loadAvailableOrders();
     }
 }

@@ -14,6 +14,54 @@ let currentRiderOrderId = null;
 let monthlyEarnings = 0;
 let totalEarnings = 0;
 
+// ===== SUPABASE INITIALIZATION =====
+async function initializeRiderSupabase() {
+    try {
+        // Check if already initialized
+        if (window.supabaseClient && window.supabase?.from) {
+            console.log('✅ Supabase already initialized');
+            return true;
+        }
+
+        // Wait for Supabase library to load
+        let attempts = 0;
+        while (!window.supabase?.createClient) {
+            if (attempts > 30) {
+                console.warn('⏳ Supabase library not loaded, attempting direct initialization...');
+                break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+
+        // If library is loaded, use it
+        if (window.supabase?.createClient) {
+            console.log('✅ Supabase library loaded, initializing client...');
+            
+            // Fetch config from backend
+            const response = await fetch(`${API_BASE}/api/config`);
+            if (!response.ok) throw new Error('Failed to fetch config');
+            
+            const { supabaseUrl, supabaseAnonKey } = await response.json();
+            if (!supabaseUrl || !supabaseAnonKey) throw new Error('Missing Supabase credentials');
+            
+            // Create client
+            const { createClient } = window.supabase;
+            window.supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+            window.supabase.from = window.supabaseClient.from.bind(window.supabaseClient);
+            
+            console.log('✅ Supabase client initialized successfully');
+            return true;
+        } else {
+            console.warn('⚠️ Supabase library not available yet');
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ Supabase initialization failed:', error);
+        return false;
+    }
+}
+
 function bindEvent(id, event, handler) {
     const element = document.getElementById(id);
     if (!element) {
@@ -39,6 +87,9 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeApp() {
     const riderId = localStorage.getItem('riderId');
     const riderToken = localStorage.getItem('riderToken');
+    
+    // Initialize Supabase first
+    initializeRiderSupabase();
     
     // Hide both modals first
     document.getElementById('registrationModal').classList.remove('show');
@@ -357,24 +408,26 @@ async function fetchCompletedDeliveriesCount() {
 
         // Wait for Supabase client to be available
         let attempts = 0;
-        while (!window.supabase || !window.supabaseClient || !window.supabase.from || typeof window.supabase.from !== 'function') {
-            if (attempts > 60) {
-                throw new Error('Supabase client not initialized after 6 seconds');
+        while (!window.supabaseClient?.from) {
+            if (attempts > 100) {
+                console.warn('⚠️ Supabase still not initialized after 10 seconds, using default value');
+                document.getElementById('totalDeliveries').textContent = riderData?.totalDeliveries || 0;
+                return;
             }
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
         }
 
         // Count completed deliveries from Supabase
-        const { count, error } = await window.supabase
+        const { count, error } = await window.supabaseClient
             .from('delivery_orders')
             .select('*', { count: 'exact', head: true })
             .eq('rider_id', riderId)
             .eq('status', 'delivered');
 
-        if (!error) {
-            document.getElementById('totalDeliveries').textContent = count || 0;
-            console.log(`✅ Completed deliveries: ${count || 0}`);
+        if (!error && count !== null) {
+            document.getElementById('totalDeliveries').textContent = count;
+            console.log(`✅ Completed deliveries: ${count}`);
         } else {
             console.warn('Error fetching deliveries:', error);
             document.getElementById('totalDeliveries').textContent = riderData?.totalDeliveries || 0;
@@ -751,16 +804,17 @@ async function loadCompletedDeliveries() {
 
         // Wait for Supabase client to be available
         let attempts = 0;
-        while (!window.supabase || !window.supabaseClient || !window.supabase.from || typeof window.supabase.from !== 'function') {
-            if (attempts > 60) {
-                throw new Error('Supabase client not initialized after 6 seconds');
+        while (!window.supabaseClient?.from) {
+            if (attempts > 100) {
+                console.warn('⚠️ Supabase not initialized, skipping completed deliveries');
+                return;
             }
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
         }
 
         // Fetch completed deliveries from Supabase delivery_orders table
-        const { data: completedRiderOrders, error } = await window.supabase
+        const { data: completedRiderOrders, error } = await window.supabaseClient
             .from('delivery_orders')
             .select('*')
             .eq('rider_id', riderId)

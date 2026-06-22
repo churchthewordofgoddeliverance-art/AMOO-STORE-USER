@@ -1,5 +1,5 @@
 // ===== API BASE URL =====
-const API_BASE = 'https://amoostore.onrender.com';
+const API_BASE = 'https://amoo-store-user-i18d.onrender.com';
 
 // ===== RIDER DATA =====
 let riderData = null;
@@ -15,9 +15,11 @@ let totalEarnings = 0;
 
 function bindEvent(id, event, handler) {
     const element = document.getElementById(id);
-    if (element) {
-        element.addEventListener(event, handler);
+    if (!element) {
+        console.warn(`bindEvent: element not found: ${id}`);
+        return;
     }
+    element.addEventListener(event, handler);
 }
 
 // ===== INITIALIZATION =====
@@ -31,8 +33,8 @@ function initializeApp() {
     const riderToken = localStorage.getItem('riderToken');
     
     // Hide both modals first
-    document.getElementById('registrationModal')?.classList.remove('show');
-    document.getElementById('loginModal')?.classList.remove('show');
+    document.getElementById('registrationModal').classList.remove('show');
+    document.getElementById('loginModal').classList.remove('show');
     
     if (!riderId || !riderToken) {
         // No session - show registration modal
@@ -74,8 +76,10 @@ function setupEventListeners() {
 
     // Delivery status modal
     bindEvent('updateStatusBtn', 'click', updateDeliveryStatus);
-    bindEvent('cancelStatusBtn', 'click', closeDeliveryModal);
-    bindEvent('status-arrived', 'change', showCodeSection);
+    const cancelStatusBtn = document.getElementById('cancelStatusBtn');
+    if (cancelStatusBtn) cancelStatusBtn.addEventListener('click', closeDeliveryModal);
+    const statusArrived = document.getElementById('status-arrived');
+    if (statusArrived) statusArrived.addEventListener('change', showCodeSection);
 
     // Code verification
     bindEvent('verifyCodeBtn', 'click', verifyDeliveryCode);
@@ -568,13 +572,27 @@ function closeOrderModal() {
 
 // ===== ACCEPT/REJECT ORDER =====
 async function acceptOrder() {
-    if (!currentOrder) return;
+    if (!currentOrder) {
+        showNotification('No order selected to accept', 'danger');
+        return;
+    }
+
+    const riderId = localStorage.getItem('riderId');
+    const token = localStorage.getItem('riderToken');
+    const riderOrderId = currentRiderOrderId || currentOrder.riderOrderId || currentOrder.orderId || currentOrder.id;
+
+    if (!riderId || !token) {
+        showNotification('Please log in again before accepting orders', 'danger');
+        return;
+    }
+
+    if (!riderOrderId) {
+        console.warn('acceptOrder: missing riderOrderId', currentOrder);
+        showNotification('Order identifier is missing', 'danger');
+        return;
+    }
 
     try {
-        const riderId = localStorage.getItem('riderId');
-        const token = localStorage.getItem('riderToken');
-        const riderOrderId = currentRiderOrderId;
-
         // Call accept endpoint
         const response = await fetch(`${API_BASE}/api/rider-orders/${riderOrderId}/accept`, {
             method: 'POST',

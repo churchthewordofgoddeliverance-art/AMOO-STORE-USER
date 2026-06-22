@@ -2154,7 +2154,7 @@ app.get('/api/rider-orders/available', async (req, res) => {
 // POST Accept order (rider accepts the delivery)
 app.post('/api/rider-orders/:riderOrderId/accept', async (req, res) => {
   try {
-    const { riderOrderId } = req.params;
+    let { riderOrderId } = req.params;
     const { riderId } = req.body;
 
     if (!riderOrderId) {
@@ -2166,7 +2166,7 @@ app.post('/api/rider-orders/:riderOrderId/accept', async (req, res) => {
     }
 
     // Ensure the rider order exists before updating
-    const { data: existingOrder, error: fetchError } = await supabase
+    let { data: existingOrder, error: fetchError } = await supabase
       .from('rider_orders')
       .select('id, order_id, status')
       .eq('id', riderOrderId)
@@ -2174,7 +2174,25 @@ app.post('/api/rider-orders/:riderOrderId/accept', async (req, res) => {
 
     if (fetchError) {
       console.error('Failed to fetch rider order for accept:', fetchError.message);
-      return res.status(500).json({ error: 'Failed to accept order' });
+      return res.status(500).json({ error: 'Failed to accept order', detail: fetchError.message });
+    }
+
+    if (!existingOrder) {
+      const lookupResult = await supabase
+        .from('rider_orders')
+        .select('id, order_id, status')
+        .eq('order_id', riderOrderId)
+        .maybeSingle();
+
+      if (lookupResult.error) {
+        console.error('Failed to lookup rider order by order_id:', lookupResult.error.message);
+        return res.status(500).json({ error: 'Failed to accept order', detail: lookupResult.error.message });
+      }
+
+      existingOrder = lookupResult.data;
+      if (existingOrder) {
+        riderOrderId = existingOrder.id;
+      }
     }
 
     if (!existingOrder) {
@@ -2186,17 +2204,39 @@ app.post('/api/rider-orders/:riderOrderId/accept', async (req, res) => {
       return res.status(400).json({ error: 'Order cannot be accepted in its current status' });
     }
 
-    const { data: updatedOrder, error: updateError } = await supabase
+    const acceptedAt = new Date().toISOString();
+    let updatePayload = {
+      status: 'accepted',
+      accepted_by_rider_id: riderId,
+      accepted_at: acceptedAt,
+      updated_at: acceptedAt
+    };
+
+    let { data: updatedOrder, error: updateError } = await supabase
       .from('rider_orders')
-      .update({
-        status: 'accepted',
-        accepted_by_rider_id: riderId,
-        accepted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', riderOrderId)
       .select()
       .maybeSingle();
+
+    if (updateError && updateError.message?.includes('accepted_at')) {
+      console.warn('Retrying accept order without accepted_at due to schema cache issue');
+      updatePayload = {
+        status: 'accepted',
+        accepted_by_rider_id: riderId,
+        updated_at: acceptedAt
+      };
+
+      const retryResult = await supabase
+        .from('rider_orders')
+        .update(updatePayload)
+        .eq('id', riderOrderId)
+        .select()
+        .maybeSingle();
+
+      updatedOrder = retryResult.data;
+      updateError = retryResult.error;
+    }
 
     if (updateError) {
       console.error('Failed to accept order:', updateError.message);

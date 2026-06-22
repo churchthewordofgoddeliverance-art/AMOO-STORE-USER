@@ -479,10 +479,15 @@ function createOrderCard(order) {
     const items = Array.isArray(order.items) ? order.items : [];
     const itemCount = items.length || 0;
     
+    // Check if this order has been accepted (exists in delivery_orders)
+    const isAccepted = order.deliveryOrderId || currentDeliveryStatus[order.riderOrderId];
+    
+    const buttonText = isAccepted ? '🔐 Request Code' : '✓ Accept';
+    
     card.innerHTML = `
         <div class="order-header">
             <span class="order-id">${order.id}</span>
-            <span class="order-status status-pending">📋 Available</span>
+            <span class="order-status status-pending">${isAccepted ? '📋 Accepted' : '📋 Available'}</span>
         </div>
         <div class="order-customer">
             <p class="customer-name">${order.customerName}</p>
@@ -494,12 +499,70 @@ function createOrderCard(order) {
         </div>
         <div class="order-footer">
             <span class="order-amount">₦${(order.total || 0).toLocaleString()}</span>
-            <span class="order-distance">${order.distance} km</span>
+            <button class="btn-action" style="
+                padding: 0.5rem 1rem;
+                background-color: ${isAccepted ? '#27ae60' : '#3498db'};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 0.85rem;
+            ">${buttonText}</button>
         </div>
     `;
 
-    card.addEventListener('click', () => openOrderModal(order));
+    const button = card.querySelector('.btn-action');
+    button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isAccepted) {
+            // Request Code flow
+            currentOrder = order;
+            currentRiderOrderId = order.deliveryOrderId || order.riderOrderId;
+            openDeliveryDetailModal(order);
+        } else {
+            // Accept flow
+            acceptOrderFlow(order);
+        }
+    });
+
     return card;
+}
+
+// Accept order and transition to Request Code flow
+async function acceptOrderFlow(order) {
+    try {
+        const riderId = localStorage.getItem('riderId');
+        const token = localStorage.getItem('riderToken');
+        
+        const response = await fetch(`${API_BASE}/api/rider-orders/${order.riderOrderId}/accept`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ riderId })
+        });
+
+        if (response.ok) {
+            const acceptedOrder = await response.json();
+            showNotification('✅ Order accepted! Now request code from customer.', 'success');
+            
+            // Mark as accepted locally
+            currentDeliveryStatus[order.riderOrderId] = 'accepted';
+            order.deliveryOrderId = acceptedOrder.order?.id;
+            
+            // Reload available orders to show updated button
+            await loadAvailableOrders();
+            updateDashboardStats();
+        } else {
+            const error = await response.json();
+            showNotification(`❌ ${error.error || 'Failed to accept order'}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error accepting order:', error);
+        showNotification('❌ Error accepting order. Try again.', 'error');
+    }
 }
 
 function filterAvailableOrders(e) {
@@ -614,7 +677,6 @@ async function acceptOrder() {
             const acceptedOrderId = currentOrder.id; // Save before closing modal
             closeOrderModal();
             await loadAvailableOrders();
-            await loadActiveDeliveries();
             updateDashboardStats();
             showNotification(`Order ${acceptedOrderId} accepted! Ready for code.`, 'success');
         } else {
@@ -665,114 +727,7 @@ function rejectOrder() {
 }
 
 // ===== ACTIVE DELIVERIES =====
-async function loadActiveDeliveries() {
-    try {
-        const riderId = localStorage.getItem('riderId');
-        const token = localStorage.getItem('riderToken');
-
-        // Fetch active orders from delivery_orders table (status: accepted or code-sent)
-        const response = await fetch(`${API_BASE}/api/rider/${riderId}/delivery-orders/active`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (response.ok) {
-            const deliveryOrders = await response.json();
-            // Map delivery_orders table data
-            const activeOrders = deliveryOrders
-                .filter(ord => ord.status !== 'delivered')
-                .map(ord => ({
-                    id: ord.order_id,
-                    orderId: ord.order_id,
-                    deliveryOrderId: ord.id,
-                    customerName: ord.customer_name || 'Unknown',
-                    customerPhone: ord.customer_phone || 'N/A',
-                    customerEmail: ord.customer_email || 'N/A',
-                    items: (ord.order_items && Array.isArray(ord.order_items)) ? ord.order_items : [],
-                    total: ord.order_total || 0,
-                    address: ord.delivery_address || 'N/A',
-                    city: ord.delivery_city || '',
-                    state: ord.delivery_state || '',
-                    status: ord.status,
-                    deliveryCode: ord.delivery_code,
-                    codeSentAt: ord.code_sent_at
-                }));
-            displayActiveDeliveries(activeOrders);
-        } else {
-            console.error('Failed to fetch delivery orders');
-        }
-    } catch (error) {
-        console.error('Error loading active deliveries:', error);
-    }
-}
-
-function displayActiveDeliveries(activeOrders) {
-    const container = document.getElementById('activeDeliveriesList');
-    container.innerHTML = '';
-
-    if (activeOrders.length === 0) {
-        container.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">No active deliveries</p>';
-        return;
-    }
-
-    activeOrders.forEach(order => {
-        const card = createActiveDeliveryCard(order);
-        card.addEventListener('click', () => openDeliveryModal(order));
-        container.appendChild(card);
-    });
-}
-
-function createActiveDeliveryCard(order) {
-    const card = document.createElement('div');
-    card.className = 'order-card';
-    card.style.borderLeftColor = '#00796b';
-    
-    const statusLabels = {
-        'accepted': '📋 Ready to Deliver',
-        'code-sent': '📧 Code Sent',
-        'delivered': '✅ Delivered'
-    };
-
-    const statusDisplay = statusLabels[order.status] || order.status;
-    
-    const buttonText = order.status === 'accepted' ? '🔐 Request Code' : 
-                      order.status === 'code-sent' ? '✓ Verify Code' : 'Delivered';
-    const buttonDisabled = order.status === 'delivered';
-
-    card.innerHTML = `
-        <div class="order-header">
-            <span class="order-id">${order.id}</span>
-            <span class="order-status status-active">${statusDisplay}</span>
-        </div>
-        <div class="order-customer">
-            <p class="customer-name">${order.customerName}</p>
-            <p class="customer-phone">${order.customerPhone}</p>
-        </div>
-        <div class="order-details-list">
-            <p><strong>Address:</strong> ${order.address}</p>
-            <p><strong>Amount:</strong> ₦${order.total.toLocaleString()}</p>
-        </div>
-        <div class="order-footer">
-            <span class="order-amount">₦${order.total.toLocaleString()}</span>
-            <button class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;" ${buttonDisabled ? 'disabled' : ''}>
-                ${buttonText}
-            </button>
-        </div>
-    `;
-
-    const button = card.querySelector('.btn-primary');
-    button.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (order.status === 'accepted') {
-            openDeliveryDetailModal(order);
-        } else if (order.status === 'code-sent') {
-            openCodeVerificationModal(order);
-        }
-    });
-
-    return card;
-}
-
-// ===== COMPLETED DELIVERIES =====
+// ===== DELIVERY HISTORY =====
 async function loadCompletedDeliveries() {
     try {
         const riderId = localStorage.getItem('riderId');
@@ -1220,8 +1175,8 @@ async function verifyDeliveryCodeFromModal() {
             
             // Reload deliveries after delay
             setTimeout(() => {
-                loadActiveDeliveries();
                 loadCompletedDeliveries();
+                loadAvailableOrders();
                 updateDashboardStats();
             }, 500);
         } else {
@@ -1269,8 +1224,8 @@ async function verifyDeliveryCode() {
             closeCodeVerificationModal();
             showNotification('✅ Delivery completed! Confirmation emails sent.', 'success');
             
-            await loadActiveDeliveries();
             await loadCompletedDeliveries();
+            await loadAvailableOrders();
             updateDashboardStats();
         } else {
             const error = await response.json();

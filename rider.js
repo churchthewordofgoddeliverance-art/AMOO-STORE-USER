@@ -1,5 +1,5 @@
 // ===== API BASE URL =====
-const API_BASE = 'https://amoo-store-user-i18d.onrender.com';
+const API_BASE = 'https://amoostore.onrender.com';
 
 // ===== RIDER DATA =====
 let riderData = null;
@@ -13,6 +13,13 @@ let currentRiderOrderId = null;
 let monthlyEarnings = 0;
 let totalEarnings = 0;
 
+function bindEvent(id, event, handler) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.addEventListener(event, handler);
+    }
+}
+
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
@@ -24,8 +31,8 @@ function initializeApp() {
     const riderToken = localStorage.getItem('riderToken');
     
     // Hide both modals first
-    document.getElementById('registrationModal').classList.remove('show');
-    document.getElementById('loginModal').classList.remove('show');
+    document.getElementById('registrationModal')?.classList.remove('show');
+    document.getElementById('loginModal')?.classList.remove('show');
     
     if (!riderId || !riderToken) {
         // No session - show registration modal
@@ -45,15 +52,15 @@ function setupEventListeners() {
     });
 
     // Registration
-    document.getElementById('registrationForm').addEventListener('submit', handleRegistration);
+    bindEvent('registrationForm', 'submit', handleRegistration);
 
     // Login
-    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    bindEvent('loginForm', 'submit', handleLogin);
 
     // Modal controls
-    document.getElementById('closeModal').addEventListener('click', closeOrderModal);
-    document.getElementById('closeDeliveryModal').addEventListener('click', closeDeliveryModal);
-    document.getElementById('closeCodeModal').addEventListener('click', closeCodeModal);
+    bindEvent('closeModal', 'click', closeOrderModal);
+    bindEvent('closeDeliveryModal', 'click', closeDeliveryModal);
+    bindEvent('closeCodeModal', 'click', closeCodeModal);
     
     window.addEventListener('click', function(event) {
         if (event.target === document.getElementById('orderModal')) closeOrderModal();
@@ -62,30 +69,30 @@ function setupEventListeners() {
     });
 
     // Order modal actions
-    document.getElementById('acceptOrderModalBtn').addEventListener('click', acceptOrder);
-    document.getElementById('rejectOrderBtn').addEventListener('click', rejectOrder);
+    bindEvent('acceptOrderModalBtn', 'click', acceptOrder);
+    bindEvent('rejectOrderBtn', 'click', rejectOrder);
 
     // Delivery status modal
-    document.getElementById('updateStatusBtn').addEventListener('click', updateDeliveryStatus);
-    document.getElementById('cancelStatusBtn').addEventListener('click', closeDeliveryModal);
-    document.getElementById('status-arrived').addEventListener('change', showCodeSection);
+    bindEvent('updateStatusBtn', 'click', updateDeliveryStatus);
+    bindEvent('cancelStatusBtn', 'click', closeDeliveryModal);
+    bindEvent('status-arrived', 'change', showCodeSection);
 
     // Code verification
-    document.getElementById('verifyCodeBtn').addEventListener('click', verifyDeliveryCode);
-    document.getElementById('cancelCodeBtn').addEventListener('click', closeCodeModal);
+    bindEvent('verifyCodeBtn', 'click', verifyDeliveryCode);
+    bindEvent('cancelCodeBtn', 'click', closeCodeModal);
 
     // Search and filter
-    document.getElementById('searchOrders').addEventListener('input', filterAvailableOrders);
-    document.getElementById('filterDate').addEventListener('change', filterCompletedOrders);
+    bindEvent('searchOrders', 'input', filterAvailableOrders);
+    bindEvent('filterDate', 'change', filterCompletedOrders);
 
     // Profile
-    document.getElementById('editProfileBtn').addEventListener('click', editProfile);
+    bindEvent('editProfileBtn', 'click', editProfile);
 
     // Logout
-    document.getElementById('logoutBtn').addEventListener('click', logout);
+    bindEvent('logoutBtn', 'click', logout);
 
     // Status toggle
-    document.getElementById('riderStatusToggle').addEventListener('click', toggleOnlineStatus);
+    bindEvent('riderStatusToggle', 'click', toggleOnlineStatus);
 
     // Earnings card click - open withdrawal modal
     const earningsCard = document.getElementById('earningsCard');

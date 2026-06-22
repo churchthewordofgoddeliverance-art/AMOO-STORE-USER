@@ -1,5 +1,5 @@
 // ===== API BASE URL =====
-const API_BASE = 'https://amoo-store-user-i18d.onrender.com';
+const API_BASE = 'https://amoostore.onrender.com';
 
 // ===== RIDER DATA =====
 let riderData = null;
@@ -12,6 +12,22 @@ let currentOrder = null;
 let currentRiderOrderId = null;
 let monthlyEarnings = 0;
 let totalEarnings = 0;
+
+function bindEvent(id, event, handler) {
+    const element = document.getElementById(id);
+    if (!element) {
+        console.warn(`bindEvent: element not found: ${id}`);
+        return;
+    }
+    element.addEventListener(event, handler);
+}
+
+function bindIfExists(id, event, handler) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.addEventListener(event, handler);
+    }
+}
 
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', function() {
@@ -45,15 +61,15 @@ function setupEventListeners() {
     });
 
     // Registration
-    document.getElementById('registrationForm').addEventListener('submit', handleRegistration);
+    bindEvent('registrationForm', 'submit', handleRegistration);
 
     // Login
-    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    bindEvent('loginForm', 'submit', handleLogin);
 
     // Modal controls
-    document.getElementById('closeModal').addEventListener('click', closeOrderModal);
-    document.getElementById('closeDeliveryModal').addEventListener('click', closeDeliveryModal);
-    document.getElementById('closeCodeModal').addEventListener('click', closeCodeModal);
+    bindEvent('closeModal', 'click', closeOrderModal);
+    bindEvent('closeDeliveryModal', 'click', closeDeliveryModal);
+    bindEvent('closeCodeModal', 'click', closeCodeModal);
     
     window.addEventListener('click', function(event) {
         if (event.target === document.getElementById('orderModal')) closeOrderModal();
@@ -62,30 +78,30 @@ function setupEventListeners() {
     });
 
     // Order modal actions
-    document.getElementById('acceptOrderModalBtn').addEventListener('click', acceptOrder);
-    document.getElementById('rejectOrderBtn').addEventListener('click', rejectOrder);
+    bindEvent('acceptOrderModalBtn', 'click', acceptOrder);
+    bindEvent('rejectOrderBtn', 'click', rejectOrder);
 
     // Delivery status modal
-    document.getElementById('updateStatusBtn').addEventListener('click', updateDeliveryStatus);
-    document.getElementById('cancelStatusBtn').addEventListener('click', closeDeliveryModal);
-    document.getElementById('status-arrived').addEventListener('change', showCodeSection);
+    bindEvent('updateStatusBtn', 'click', updateDeliveryStatus);
+    bindIfExists('cancelStatusBtn', 'click', closeDeliveryModal);
+    bindIfExists('status-arrived', 'change', showCodeSection);
 
     // Code verification
-    document.getElementById('verifyCodeBtn').addEventListener('click', verifyDeliveryCode);
-    document.getElementById('cancelCodeBtn').addEventListener('click', closeCodeModal);
+    bindEvent('verifyCodeBtn', 'click', verifyDeliveryCode);
+    bindEvent('cancelCodeBtn', 'click', closeCodeModal);
 
     // Search and filter
-    document.getElementById('searchOrders').addEventListener('input', filterAvailableOrders);
-    document.getElementById('filterDate').addEventListener('change', filterCompletedOrders);
+    bindEvent('searchOrders', 'input', filterAvailableOrders);
+    bindEvent('filterDate', 'change', filterCompletedOrders);
 
     // Profile
-    document.getElementById('editProfileBtn').addEventListener('click', editProfile);
+    bindEvent('editProfileBtn', 'click', editProfile);
 
     // Logout
-    document.getElementById('logoutBtn').addEventListener('click', logout);
+    bindEvent('logoutBtn', 'click', logout);
 
     // Status toggle
-    document.getElementById('riderStatusToggle').addEventListener('click', toggleOnlineStatus);
+    bindEvent('riderStatusToggle', 'click', toggleOnlineStatus);
 
     // Earnings card click - open withdrawal modal
     const earningsCard = document.getElementById('earningsCard');
@@ -561,13 +577,27 @@ function closeOrderModal() {
 
 // ===== ACCEPT/REJECT ORDER =====
 async function acceptOrder() {
-    if (!currentOrder) return;
+    if (!currentOrder) {
+        showNotification('No order selected to accept', 'danger');
+        return;
+    }
+
+    const riderId = localStorage.getItem('riderId');
+    const token = localStorage.getItem('riderToken');
+    const riderOrderId = currentRiderOrderId || currentOrder.riderOrderId || currentOrder.orderId || currentOrder.id;
+
+    if (!riderId || !token) {
+        showNotification('Please log in again before accepting orders', 'danger');
+        return;
+    }
+
+    if (!riderOrderId) {
+        console.warn('acceptOrder: missing riderOrderId', currentOrder);
+        showNotification('Order identifier is missing', 'danger');
+        return;
+    }
 
     try {
-        const riderId = localStorage.getItem('riderId');
-        const token = localStorage.getItem('riderToken');
-        const riderOrderId = currentRiderOrderId;
-
         // Call accept endpoint
         const response = await fetch(`${API_BASE}/api/rider-orders/${riderOrderId}/accept`, {
             method: 'POST',

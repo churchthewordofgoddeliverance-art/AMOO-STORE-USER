@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS public.rider_order_table_2 (
   order_items JSONB,
   
   -- Rider Assignment
-  rider_id UUID REFERENCES public.riders(id) ON DELETE SET NULL,
+  rider_id TEXT REFERENCES public.riders(id) ON DELETE SET NULL,
   
   -- Status: 'shipped' (available), 'accepted' (rider accepted), 'delivered'
   status VARCHAR(50) DEFAULT 'shipped',

@@ -850,9 +850,14 @@ function createCompletedOrderCard(order) {
 
 // ===== CODE VERIFICATION MODAL =====
 function showCodeVerificationModal() {
+    // Remove any existing modal
+    const existingModal = document.getElementById('codeVerificationModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
     const modal = document.createElement('div');
     modal.id = 'codeVerificationModal';
-    modal.className = 'modal show';
     modal.style.cssText = `
         position: fixed;
         top: 0;
@@ -866,91 +871,112 @@ function showCodeVerificationModal() {
         z-index: 1000;
     `;
     
-    modal.innerHTML = `
-        <div style="
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 400px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-        ">
-            <h2 style="margin-top: 0; color: #333;">🔐 Verify Delivery Code</h2>
-            <p style="color: #666;">Ask the customer for the verification code sent to their email:</p>
-            <input 
-                type="text" 
-                id="deliveryCodeInput" 
-                placeholder="Enter 6-digit code" 
-                style="
-                    width: 100%;
-                    padding: 0.75rem;
-                    border: 2px solid #ddd;
-                    border-radius: 4px;
-                    font-size: 1.2rem;
-                    letter-spacing: 2px;
-                    text-align: center;
-                    font-weight: bold;
-                    box-sizing: border-box;
-                    margin: 1rem 0;
-                "
-                maxlength="6"
-            />
-            <div id="codeVerifyError" style="color: #dc3545; margin: 0.5rem 0; font-size: 0.9rem;"></div>
-            <div style="display: flex; gap: 0.5rem;">
-                <button id="verifyCodeBtn" style="
-                    flex: 1;
-                    padding: 0.75rem;
-                    background-color: #27ae60;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-weight: bold;
-                ">Verify Code</button>
-                <button id="cancelCodeBtn" style="
-                    flex: 1;
-                    padding: 0.75rem;
-                    background-color: #95a5a6;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-weight: bold;
-                ">Cancel</button>
-            </div>
+    const content = document.createElement('div');
+    content.style.cssText = `
+        background: white;
+        padding: 2rem;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 400px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    `;
+    
+    content.innerHTML = `
+        <h2 style="margin-top: 0; color: #333;">🔐 Verify Delivery Code</h2>
+        <p style="color: #666;">Ask the customer for the verification code sent to their email:</p>
+        <input 
+            type="text" 
+            id="deliveryCodeInput" 
+            placeholder="Enter 6-digit code" 
+            style="
+                width: 100%;
+                padding: 0.75rem;
+                border: 2px solid #ddd;
+                border-radius: 4px;
+                font-size: 1.2rem;
+                letter-spacing: 2px;
+                text-align: center;
+                font-weight: bold;
+                box-sizing: border-box;
+                margin: 1rem 0;
+            "
+            maxlength="6"
+        />
+        <div id="codeVerifyError" style="color: #dc3545; margin: 0.5rem 0; font-size: 0.9rem;"></div>
+        <div style="display: flex; gap: 0.5rem;">
+            <button id="verifyCodeBtn" type="button" style="
+                flex: 1;
+                padding: 0.75rem;
+                background-color: #27ae60;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 1rem;
+            ">Verify Code</button>
+            <button id="cancelCodeBtn" type="button" style="
+                flex: 1;
+                padding: 0.75rem;
+                background-color: #95a5a6;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 1rem;
+            ">Cancel</button>
         </div>
     `;
     
+    modal.appendChild(content);
     document.body.appendChild(modal);
     
-    // Attach event listeners - more reliable than inline onclick
-    const verifyBtn = document.getElementById('verifyCodeBtn');
-    const cancelBtn = document.getElementById('cancelCodeBtn');
+    // Attach click handlers AFTER elements are in the DOM
+    setTimeout(() => {
+        const verifyBtn = document.getElementById('verifyCodeBtn');
+        const cancelBtn = document.getElementById('cancelCodeBtn');
+        const codeInput = document.getElementById('deliveryCodeInput');
+        
+        console.log('Verify button found:', verifyBtn ? 'YES' : 'NO');
+        console.log('Cancel button found:', cancelBtn ? 'YES' : 'NO');
+        
+        if (verifyBtn) {
+            verifyBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Verify Code button clicked!');
+                verifyDeliveryCodeFromModal();
+            });
+        }
+        
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Cancel button clicked!');
+                closeCodeVerificationModal();
+            });
+        }
+        
+        // Allow Enter key to verify
+        if (codeInput) {
+            codeInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    verifyDeliveryCodeFromModal();
+                }
+            });
+            codeInput.focus();
+        }
+    }, 0);
     
-    if (verifyBtn) {
-        verifyBtn.addEventListener('click', verifyDeliveryCodeFromModal);
-    }
-    
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', closeCodeVerificationModal);
-    }
-    
-    // Also stop propagation on the modal content to prevent closing when clicking buttons
-    const modalContent = modal.querySelector('div');
-    if (modalContent) {
-        modalContent.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-    }
-    
-    // Close modal if clicking on background overlay
-    modal.addEventListener('click', (e) => {
+    // Close modal when clicking outside content area
+    modal.addEventListener('click', function(e) {
         if (e.target === modal) {
             closeCodeVerificationModal();
         }
     });
-    
-    document.getElementById('deliveryCodeInput').focus();
 }
 
 function closeCodeVerificationModal() {

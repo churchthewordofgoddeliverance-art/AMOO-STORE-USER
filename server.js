@@ -2373,35 +2373,40 @@ app.post('/api/rider-orders/:riderOrderId/verify-code', async (req, res) => {
       return res.status(400).json({ error: 'Code is required' });
     }
     
-    // Fetch rider order from rider_order_table_2
-    const { data: riderOrder, error: fetchError } = await supabase
-      .from('rider_order_table_2')
+    // Fetch delivery order from delivery_orders table
+    const { data: deliveryOrder, error: fetchError } = await supabase
+      .from('delivery_orders')
       .select('*')
       .eq('id', riderOrderId)
       .single();
     
-    if (fetchError || !riderOrder) {
-      return res.status(404).json({ error: 'Rider order not found' });
+    if (fetchError || !deliveryOrder) {
+      return res.status(404).json({ error: 'Delivery order not found' });
     }
     
     // Verify code
-    if (riderOrder.delivery_code !== code) {
+    if (deliveryOrder.delivery_code !== code) {
       console.warn(`⚠️ Invalid code attempt for order ${riderOrderId}`);
       return res.status(400).json({ error: 'Invalid verification code' });
     }
     
-    // Update rider_order_table_2 status to delivered
-    const { error: updateRiderOrderError } = await supabase
-      .from('rider_order_table_2')
+    const deliveredAt = new Date().toISOString();
+    
+    // Update delivery_orders status to delivered
+    const { error: updateDeliveryError } = await supabase
+      .from('delivery_orders')
       .update({ 
         status: 'delivered',
-        delivered_at: new Date().toISOString(),
-        delivery_code: null
+        delivered_at: deliveredAt,
+        delivery_code: null,
+        delivery_code_verified: true,
+        admin_notified: false,
+        updated_at: deliveredAt
       })
       .eq('id', riderOrderId);
     
-    if (updateRiderOrderError) {
-      console.error('Failed to update rider order:', updateRiderOrderError.message);
+    if (updateDeliveryError) {
+      console.error('Failed to update delivery order:', updateDeliveryError.message);
       return res.status(500).json({ error: 'Failed to complete delivery' });
     }
     
@@ -2409,25 +2414,25 @@ app.post('/api/rider-orders/:riderOrderId/verify-code', async (req, res) => {
     const { error: updateOrderError } = await supabase
       .from('orders')
       .update({ status: 'delivered' })
-      .eq('id', riderOrder.order_id);
+      .eq('id', deliveryOrder.order_id);
     
     if (updateOrderError) {
       console.error('Failed to update order:', updateOrderError.message);
       return res.status(500).json({ error: 'Failed to update order status' });
     }
     
-    console.log(`✅ Order ${riderOrder.order_id} marked as delivered`);
+    console.log(`✅ Order ${deliveryOrder.order_id} marked as delivered by rider ${deliveryOrder.rider_id}`);
     
-    // Send delivery confirmation email to customer
-    const emailTemplate = {
-      subject: `✅ Your Order Has Been Delivered - Order #${riderOrder.order_id}`,
+    // Send delivery confirmation email to CUSTOMER
+    const customerEmailTemplate = {
+      subject: `✅ Your Order Has Been Delivered - Order #${deliveryOrder.order_id}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
           <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
             <h2 style="color: #27ae60; margin-bottom: 20px;">✅ Your Order Has Been Delivered!</h2>
             
             <p style="color: #666; font-size: 16px; line-height: 1.6;">
-              Hello ${riderOrder.customer_name},
+              Hello ${deliveryOrder.customer_name},
             </p>
             
             <p style="color: #666; font-size: 16px; line-height: 1.6;">
@@ -2435,9 +2440,10 @@ app.post('/api/rider-orders/:riderOrderId/verify-code', async (req, res) => {
             </p>
             
             <div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin: 20px 0;">
-              <p style="margin: 5px 0; color: #333;"><strong>Order ID:</strong> ${riderOrder.order_id}</p>
-              <p style="margin: 5px 0; color: #333;"><strong>Delivery Completed:</strong> ${new Date().toLocaleString()}</p>
-              <p style="margin: 5px 0; color: #333;"><strong>Order Total:</strong> ₦${riderOrder.order_total.toLocaleString()}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Order ID:</strong> ${deliveryOrder.order_id}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Delivered By:</strong> ${deliveryOrder.rider_name}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Delivery Date:</strong> ${new Date(deliveredAt).toLocaleString()}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Order Total:</strong> ₦${deliveryOrder.order_total.toLocaleString()}</p>
             </div>
             
             <p style="color: #666; font-size: 14px; line-height: 1.6;">
@@ -2450,17 +2456,71 @@ app.post('/api/rider-orders/:riderOrderId/verify-code', async (req, res) => {
           </div>
         </div>
       `,
-      text: `Your Order #${riderOrder.order_id} Has Been Delivered!\n\nThank you for shopping with us. We hope you enjoy your purchase!`
+      text: `Your Order #${deliveryOrder.order_id} Has Been Delivered!\n\nDelivered By: ${deliveryOrder.rider_name}\nDelivery Date: ${new Date(deliveredAt).toLocaleString()}\n\nThank you for shopping with us!`
     };
     
-    await sendEmailViaBrevo(
-      riderOrder.customer_email,
-      emailTemplate.subject,
-      emailTemplate.html,
-      emailTemplate.text
-    ).catch(err => console.warn('Failed to send delivery confirmation email:', err.message));
+    sendEmailViaBrevo(
+      deliveryOrder.customer_email,
+      customerEmailTemplate.subject,
+      customerEmailTemplate.html,
+      customerEmailTemplate.text
+    ).catch(err => console.warn('Failed to send customer delivery confirmation:', err.message));
     
-    res.json({ success: true, message: 'Order marked as delivered' });
+    // Send delivery notification email to ADMIN with rider details
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@amoostore.com';
+    const adminEmailTemplate = {
+      subject: `📦 Order Delivered - Order #${deliveryOrder.order_id}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h2 style="color: #27ae60; margin-bottom: 20px;">📦 Order Successfully Delivered</h2>
+            
+            <div style="background-color: #f0f0f0; padding: 20px; border-radius: 5px; margin: 20px 0;">
+              <h3 style="color: #333; margin-top: 0;">Order Details</h3>
+              <p style="margin: 8px 0; color: #333;"><strong>Order ID:</strong> ${deliveryOrder.order_id}</p>
+              <p style="margin: 8px 0; color: #333;"><strong>Order Total:</strong> ₦${deliveryOrder.order_total.toLocaleString()}</p>
+              <p style="margin: 8px 0; color: #333;"><strong>Delivery Date:</strong> ${new Date(deliveredAt).toLocaleString()}</p>
+            </div>
+            
+            <div style="background-color: #e8f5e9; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #27ae60;">
+              <h3 style="color: #1b5e20; margin-top: 0;">Rider Information</h3>
+              <p style="margin: 8px 0; color: #333;"><strong>Rider Name:</strong> ${deliveryOrder.rider_name}</p>
+              <p style="margin: 8px 0; color: #333;"><strong>Rider Email:</strong> <a href="mailto:${deliveryOrder.rider_email}" style="color: #27ae60;">${deliveryOrder.rider_email}</a></p>
+              <p style="margin: 8px 0; color: #333;"><strong>Rider Phone:</strong> ${deliveryOrder.rider_phone}</p>
+            </div>
+            
+            <div style="background-color: #fff3e0; padding: 20px; border-radius: 5px; margin: 20px 0;">
+              <h3 style="color: #e65100; margin-top: 0;">Customer Information</h3>
+              <p style="margin: 8px 0; color: #333;"><strong>Customer Name:</strong> ${deliveryOrder.customer_name}</p>
+              <p style="margin: 8px 0; color: #333;"><strong>Customer Email:</strong> <a href="mailto:${deliveryOrder.customer_email}" style="color: #ff6f00;">${deliveryOrder.customer_email}</a></p>
+              <p style="margin: 8px 0; color: #333;"><strong>Customer Phone:</strong> ${deliveryOrder.customer_phone}</p>
+            </div>
+            
+            <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 5px 0; color: #666;"><strong>Delivery Address:</strong> ${deliveryOrder.delivery_address}</p>
+              <p style="margin: 5px 0; color: #666;"><strong>City:</strong> ${deliveryOrder.delivery_city}</p>
+              <p style="margin: 5px 0; color: #666;"><strong>State:</strong> ${deliveryOrder.delivery_state}</p>
+            </div>
+            
+            <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+              This is an automated notification. Please do not reply to this email.
+            </p>
+          </div>
+        </div>
+      `,
+      text: `Order Delivered!\n\nOrder ID: ${deliveryOrder.order_id}\nOrder Total: ₦${deliveryOrder.order_total.toLocaleString()}\nDelivery Date: ${new Date(deliveredAt).toLocaleString()}\n\nRider Details:\nName: ${deliveryOrder.rider_name}\nEmail: ${deliveryOrder.rider_email}\nPhone: ${deliveryOrder.rider_phone}\n\nCustomer Details:\nName: ${deliveryOrder.customer_name}\nEmail: ${deliveryOrder.customer_email}\nPhone: ${deliveryOrder.customer_phone}\n\nDelivery Address: ${deliveryOrder.delivery_address}, ${deliveryOrder.delivery_city}, ${deliveryOrder.delivery_state}`
+    };
+    
+    sendEmailViaBrevo(
+      adminEmail,
+      adminEmailTemplate.subject,
+      adminEmailTemplate.html,
+      adminEmailTemplate.text
+    ).catch(err => console.warn('Failed to send admin notification:', err.message));
+    
+    console.log(`📧 Admin notified about delivery of order ${deliveryOrder.order_id}`);
+    
+    res.json({ success: true, message: 'Order marked as delivered', order: deliveryOrder });
   } catch (error) {
     console.error('❌ Error verifying code:', error);
     res.status(500).json({ error: 'Failed to verify code' });

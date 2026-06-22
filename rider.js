@@ -22,18 +22,34 @@ async function initializeRiderSupabase() {
             return true;
         }
 
-        // Wait for global Supabase initialization (from script.js)
+        console.log('⏳ Waiting for Supabase initialization...');
+
+        // Wait for global Supabase initialization promise to resolve (from script.js)
         if (window.supabaseInitPromise) {
-            await window.supabaseInitPromise;
+            const result = await window.supabaseInitPromise;
+            console.log('✅ Global Supabase init promise resolved:', result);
         }
 
-        // Additional wait if still not ready
+        // Now wait for the client to be available with increased timeout
         let attempts = 0;
+        const maxAttempts = 200; // 20 seconds at 100ms intervals
+        
         while (!window.supabaseClient?.from) {
-            if (attempts > 50) {
-                console.warn('⚠️ Supabase initialization timeout, will use fallback values');
+            if (attempts > maxAttempts) {
+                console.warn(`⚠️ Supabase initialization timeout after ${maxAttempts * 100}ms`);
+                console.warn('Client state:', {
+                    supabaseClientExists: !!window.supabaseClient,
+                    supabaseClientFrom: !!window.supabaseClient?.from,
+                    supabaseInitialized: window.supabaseInitialized,
+                    supabaseLib: !!window.supabase
+                });
                 return false;
             }
+            
+            if (attempts % 20 === 0 && attempts > 0) {
+                console.log(`⏳ Still waiting... (${attempts * 100}ms)`);
+            }
+            
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
         }

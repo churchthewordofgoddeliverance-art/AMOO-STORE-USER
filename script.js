@@ -75,18 +75,22 @@ let PRODUCTS = [
 
 // Initialize Supabase Client
 let supabaseInitPromise = null;
+let supabaseInitialized = false;
 
 async function ensureSupabaseLibraryLoaded() {
   // If library is already loaded, resolve immediately
   if (window.supabase?.createClient) {
+    console.log('✅ Supabase library already loaded');
     return window.supabase;
   }
 
+  console.log('⏳ Waiting for Supabase library from CDN...');
+  
   // Wait for library to load from CDN
   let attempts = 0;
   while (!window.supabase?.createClient) {
-    if (attempts > 50) {
-      console.warn('⏳ Supabase CDN slow to load, will retry...');
+    if (attempts > 80) {
+      console.warn('⏳ Supabase CDN slow, loading dynamically...');
       // Try loading dynamically
       return new Promise((resolve) => {
         const script = document.createElement('script');
@@ -96,44 +100,62 @@ async function ensureSupabaseLibraryLoaded() {
           resolve(window.supabase);
         };
         script.onerror = () => {
-          console.error('❌ Failed to load Supabase library');
+          console.error('❌ Failed to load Supabase library dynamically');
           resolve(null);
         };
         document.head.appendChild(script);
       });
     }
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 50));
     attempts++;
+    if (attempts % 10 === 0) console.log(`⏳ Still waiting for Supabase library... (${attempts})`);
   }
   
+  console.log('✅ Supabase library loaded from CDN');
   return window.supabase;
 }
 
 async function initializeSupabase() {
   try {
+    console.log('🚀 Starting Supabase initialization...');
+    
     // Wait for library to be available
     const supabaseLib = await ensureSupabaseLibraryLoaded();
     if (!supabaseLib?.createClient) {
-      console.error('❌ Supabase library not available after all attempts');
-      return;
+      console.error('❌ Supabase library not available');
+      return false;
     }
 
+    console.log('📡 Fetching Supabase config from backend...');
+    
     // Fetch config from backend
-    const response = await fetch('https://amoo-store-user-i18d.onrender.com/api/config');
+    const response = await fetch('https://amoo-store-user-i18d.onrender.com/api/config', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
     if (!response.ok) {
-      console.error('❌ Failed to fetch Supabase config');
-      return;
+      console.error(`❌ Failed to fetch config: ${response.status} ${response.statusText}`);
+      return false;
     }
     
     const { supabaseUrl, supabaseAnonKey } = await response.json();
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('❌ Missing Supabase credentials in config');
-      return;
+      console.error('❌ Missing Supabase credentials in config response');
+      return false;
     }
+
+    console.log('🔧 Creating Supabase client...');
     
     // Create Supabase client instance and store it
     const { createClient } = window.supabase;
     window.supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    
+    // Verify client was created
+    if (!window.supabaseClient) {
+      console.error('❌ Failed to create Supabase client');
+      return false;
+    }
     
     // Create a wrapper for backward compatibility
     window.supabase = {
@@ -143,10 +165,14 @@ async function initializeSupabase() {
     };
     
     console.log('✅ Supabase client initialized successfully');
+    supabaseInitialized = true;
+    return true;
   } catch (error) {
-    console.error('❌ Failed to initialize Supabase:', error);
+    console.error('❌ Supabase initialization error:', error.message || error);
+    return false;
   }
 }
+
 
 // Initialize Supabase when DOM is ready
 if (document.readyState === 'loading') {

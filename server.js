@@ -2323,6 +2323,12 @@ app.post('/api/rider-orders/:riderOrderId/accept', async (req, res) => {
       .single();
 
     if (deliveryError) {
+      // Check if it's a duplicate key error
+      if (deliveryError.code === '23505' || deliveryError.message.includes('duplicate')) {
+        console.warn('⚠️ Order already accepted by another rider:', riderOrder.order_id);
+        return res.status(400).json({ error: 'This order has already been accepted' });
+      }
+      
       console.error('❌ Failed to create delivery order:', {
         message: deliveryError.message,
         code: deliveryError.code,

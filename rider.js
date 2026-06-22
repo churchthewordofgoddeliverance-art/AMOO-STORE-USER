@@ -817,31 +817,21 @@ function showCodeVerificationModal() {
             placeholder="Enter 6-digit code" 
             style="
                 width: 100%;
-                padding: 0.75rem;
+                padding: 1rem;
                 border: 2px solid #ddd;
                 border-radius: 4px;
-                font-size: 1.2rem;
-                letter-spacing: 2px;
+                font-size: 1.5rem;
+                letter-spacing: 3px;
                 text-align: center;
                 font-weight: bold;
                 box-sizing: border-box;
                 margin: 1rem 0;
             "
             maxlength="6"
+            inputmode="numeric"
         />
-        <div id="codeVerifyError" style="color: #dc3545; margin: 0.5rem 0; font-size: 0.9rem;"></div>
-        <div style="display: flex; gap: 0.5rem;">
-            <button id="verifyCodeBtn" type="button" style="
-                flex: 1;
-                padding: 0.75rem;
-                background-color: #27ae60;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-weight: bold;
-                font-size: 1rem;
-            ">Verify Code</button>
+        <div id="codeVerifyError" style="color: #dc3545; margin: 0.5rem 0; font-size: 0.9rem; text-align: center;"></div>
+        <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
             <button id="cancelCodeBtn" type="button" style="
                 flex: 1;
                 padding: 0.75rem;
@@ -854,27 +844,38 @@ function showCodeVerificationModal() {
                 font-size: 1rem;
             ">Cancel</button>
         </div>
+        <p style="color: #999; font-size: 0.85rem; text-align: center; margin-top: 1rem;">Code will be verified automatically when all 6 digits are entered</p>
     `;
     
     modal.appendChild(content);
     document.body.appendChild(modal);
     
-    // Attach click handlers AFTER elements are in the DOM
+    // Attach event handlers AFTER elements are in the DOM
     setTimeout(() => {
-        const verifyBtn = document.getElementById('verifyCodeBtn');
-        const cancelBtn = document.getElementById('cancelCodeBtn');
         const codeInput = document.getElementById('deliveryCodeInput');
+        const cancelBtn = document.getElementById('cancelCodeBtn');
+        const errorElement = document.getElementById('codeVerifyError');
         
-        console.log('Verify button found:', verifyBtn ? 'YES' : 'NO');
+        console.log('Code input found:', codeInput ? 'YES' : 'NO');
         console.log('Cancel button found:', cancelBtn ? 'YES' : 'NO');
         
-        if (verifyBtn) {
-            verifyBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Verify Code button clicked!');
-                verifyDeliveryCodeFromModal();
+        if (codeInput) {
+            // Auto-verify when 6 digits are entered
+            codeInput.addEventListener('input', function(e) {
+                // Clear any previous error
+                errorElement.textContent = '';
+                
+                // If user has entered 6 digits, auto-verify
+                if (this.value.length === 6) {
+                    console.log('✅ 6 digits entered, auto-verifying...');
+                    setTimeout(() => {
+                        verifyDeliveryCodeFromModal();
+                    }, 300);
+                }
             });
+            
+            // Focus on input
+            codeInput.focus();
         }
         
         if (cancelBtn) {
@@ -884,17 +885,6 @@ function showCodeVerificationModal() {
                 console.log('Cancel button clicked!');
                 closeCodeVerificationModal();
             });
-        }
-        
-        // Allow Enter key to verify
-        if (codeInput) {
-            codeInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    verifyDeliveryCodeFromModal();
-                }
-            });
-            codeInput.focus();
         }
     }, 0);
     

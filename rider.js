@@ -664,35 +664,35 @@ async function loadActiveDeliveries() {
         const riderId = localStorage.getItem('riderId');
         const token = localStorage.getItem('riderToken');
 
-        // Fetch active orders accepted by this rider
-        const response = await fetch(`${API_BASE}/api/rider/${riderId}/active-orders`, {
+        // Fetch active orders from delivery_orders table (status: accepted or code-sent)
+        const response = await fetch(`${API_BASE}/api/rider/${riderId}/delivery-orders/active`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (response.ok) {
-            const activeOrderRiders = await response.json();
-            // Filter out delivered orders (those are for completed page)
-            const activeOrders = activeOrderRiders
+            const deliveryOrders = await response.json();
+            // Map delivery_orders table data
+            const activeOrders = deliveryOrders
                 .filter(ord => ord.status !== 'delivered')
-                .map(ord => {
-                    // Handle nested orders data
-                    const orderData = ord.orders || ord;
-                    return {
-                        id: ord.order_id || ord.id,
-                        orderId: ord.order_id || ord.id,
-                        riderAssignmentId: ord.id || ord.riderAssignmentId,
-                        customerName: orderData.customerName || 'Unknown',
-                        customerPhone: orderData.customerPhone || 'N/A',
-                        customerEmail: orderData.customerEmail || 'N/A',
-                        items: (orderData.items && Array.isArray(orderData.items)) ? orderData.items : [],
-                        total: orderData.total || 0,
-                        address: orderData.address || orderData.deliveryAddress || 'N/A',
-                        distance: orderData.distance || 0,
-                        paymentMethod: orderData.paymentMethod || 'N/A',
-                        status: ord.status
-                    };
-                });
+                .map(ord => ({
+                    id: ord.order_id,
+                    orderId: ord.order_id,
+                    deliveryOrderId: ord.id,
+                    customerName: ord.customer_name || 'Unknown',
+                    customerPhone: ord.customer_phone || 'N/A',
+                    customerEmail: ord.customer_email || 'N/A',
+                    items: (ord.order_items && Array.isArray(ord.order_items)) ? ord.order_items : [],
+                    total: ord.order_total || 0,
+                    address: ord.delivery_address || 'N/A',
+                    city: ord.delivery_city || '',
+                    state: ord.delivery_state || '',
+                    status: ord.status,
+                    deliveryCode: ord.delivery_code,
+                    codeSentAt: ord.code_sent_at
+                }));
             displayActiveDeliveries(activeOrders);
+        } else {
+            console.error('Failed to fetch delivery orders');
         }
     } catch (error) {
         console.error('Error loading active deliveries:', error);
@@ -720,19 +720,22 @@ function createActiveDeliveryCard(order) {
     card.className = 'order-card';
     card.style.borderLeftColor = '#00796b';
     
-    const status = currentDeliveryStatus[order.id] || 'pending';
     const statusLabels = {
-        'pending': '📋 Pending',
-        'picked': '📍 Picked Up',
-        'on-way': '🚚 On the Way',
-        'arrived': '📍 Arrived',
+        'accepted': '📋 Ready to Deliver',
+        'code-sent': '📧 Code Sent',
         'delivered': '✅ Delivered'
     };
+
+    const statusDisplay = statusLabels[order.status] || order.status;
+    
+    const buttonText = order.status === 'accepted' ? '🔐 Request Code' : 
+                      order.status === 'code-sent' ? '✓ Verify Code' : 'Delivered';
+    const buttonDisabled = order.status === 'delivered';
 
     card.innerHTML = `
         <div class="order-header">
             <span class="order-id">${order.id}</span>
-            <span class="order-status status-active">${statusLabels[status]}</span>
+            <span class="order-status status-active">${statusDisplay}</span>
         </div>
         <div class="order-customer">
             <p class="customer-name">${order.customerName}</p>
@@ -740,13 +743,25 @@ function createActiveDeliveryCard(order) {
         </div>
         <div class="order-details-list">
             <p><strong>Address:</strong> ${order.address}</p>
-            <p><strong>Distance:</strong> ${order.distance} km</p>
+            <p><strong>Amount:</strong> ₦${order.total.toLocaleString()}</p>
         </div>
         <div class="order-footer">
             <span class="order-amount">₦${order.total.toLocaleString()}</span>
-            <button class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Update Status</button>
+            <button class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;" ${buttonDisabled ? 'disabled' : ''}>
+                ${buttonText}
+            </button>
         </div>
     `;
+
+    const button = card.querySelector('.btn-primary');
+    button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (order.status === 'accepted') {
+            openDeliveryDetailModal(order);
+        } else if (order.status === 'code-sent') {
+            openCodeVerificationModal(order);
+        }
+    });
 
     return card;
 }
@@ -757,8 +772,8 @@ async function loadCompletedDeliveries() {
         const riderId = localStorage.getItem('riderId');
         const token = localStorage.getItem('riderToken');
 
-        // Fetch completed orders for this rider
-        const response = await fetch(`${API_BASE}/api/rider/${riderId}/completed-orders`, {
+        // Fetch completed orders from delivery_orders table (status: delivered)
+        const response = await fetch(`${API_BASE}/api/rider/${riderId}/delivery-orders/completed`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -767,7 +782,7 @@ async function loadCompletedDeliveries() {
             completedOrders = completedRiderOrders.map(ord => ({
                 id: ord.order_id,
                 orderId: ord.order_id,
-                riderOrderId: ord.id,
+                deliveryOrderId: ord.id,
                 customerName: ord.customer_name || 'Unknown',
                 customerPhone: ord.customer_phone || 'N/A',
                 customerEmail: ord.customer_email || 'N/A',
@@ -880,8 +895,9 @@ function showCodeVerificationModal() {
                 "
                 maxlength="6"
             />
+            <div id="codeVerifyError" style="color: #dc3545; margin: 0.5rem 0; font-size: 0.9rem;"></div>
             <div style="display: flex; gap: 0.5rem;">
-                <button onclick="verifyDeliveryCode()" style="
+                <button onclick="verifyDeliveryCodeFromModal()" style="
                     flex: 1;
                     padding: 0.75rem;
                     background-color: #27ae60;
@@ -916,10 +932,16 @@ function closeCodeVerificationModal() {
     }
 }
 
+function openCodeVerificationModal(order) {
+    currentOrder = order;
+    currentRiderOrderId = order.deliveryOrderId;
+    showCodeVerificationModal();
+}
+
 // ===== DELIVERY STATUS & CODE =====
 function openDeliveryModal(order) {
     currentOrder = order;
-    currentRiderOrderId = order.riderOrderId || order.riderAssignmentId;
+    currentRiderOrderId = order.deliveryOrderId;
     document.getElementById('deliveryModal').classList.add('show');
     document.getElementById('codeSection').style.display = 'none';
     document.getElementById('generatedCode').textContent = '-';
@@ -928,6 +950,71 @@ function openDeliveryModal(order) {
         radio.checked = false;
     });
     document.getElementById('statusNotes').value = '';
+}
+
+function openDeliveryDetailModal(order) {
+    // New modal for showing delivery details and requesting code
+    currentOrder = order;
+    currentRiderOrderId = order.deliveryOrderId;
+    
+    // Create modal
+    let modal = document.getElementById('deliveryDetailModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'deliveryDetailModal';
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+    }
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Delivery Details - Order ${order.orderId}</h2>
+                <button onclick="closeDeliveryDetailModal()" class="modal-close" style="cursor: pointer; background: none; border: none; font-size: 1.5rem;">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="padding: 1rem;">
+                    <h3 style="margin-top: 0; color: #333;">Customer Information</h3>
+                    <p><strong>Name:</strong> ${order.customerName}</p>
+                    <p><strong>Phone:</strong> ${order.customerPhone}</p>
+                    <p><strong>Email:</strong> ${order.customerEmail}</p>
+                    <p><strong>Address:</strong> ${order.address}</p>
+                    <p><strong>City:</strong> ${order.city}</p>
+                    
+                    <h3 style="color: #333;">Order Details</h3>
+                    <p><strong>Order ID:</strong> ${order.orderId}</p>
+                    <p><strong>Total Amount:</strong> ₦${order.total.toLocaleString()}</p>
+                    <p><strong>Status:</strong> ${order.status === 'accepted' ? '📋 Ready to Deliver' : '📧 Code Sent'}</p>
+                    
+                    <h3 style="color: #333;">Items</h3>
+                    <ul>
+                        ${order.items && order.items.length > 0 ? 
+                            order.items.map(item => `<li>${item.name || item.productName} (x${item.qty || item.quantity})</li>`).join('') :
+                            '<li>No items information</li>'
+                        }
+                    </ul>
+                    
+                    <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+                        <button onclick="sendDeliveryCodeToCustomer()" class="btn-primary" style="flex: 1; padding: 0.75rem;">
+                            🔐 Request Code from Customer
+                        </button>
+                        <button onclick="closeDeliveryDetailModal()" class="btn-secondary" style="flex: 1; padding: 0.75rem;">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modal.classList.add('show');
+}
+
+function closeDeliveryDetailModal() {
+    const modal = document.getElementById('deliveryDetailModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
 }
 
 function closeDeliveryModal() {
@@ -942,6 +1029,54 @@ function showCodeSection() {
 
 function generateDeliveryCode() {
     return Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+}
+
+// ===== SEND DELIVERY CODE TO CUSTOMER =====
+async function sendDeliveryCodeToCustomer() {
+    if (!currentOrder || !currentRiderOrderId) {
+        showNotification('Order information missing', 'danger');
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem('riderToken');
+        
+        // Generate code
+        const deliveryCode = generateDeliveryCode();
+        
+        // Send code to backend - it will store in delivery_orders and send email
+        const response = await fetch(`${API_BASE}/api/rider-orders/${currentRiderOrderId}/send-code`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                code: deliveryCode,
+                customerEmail: currentOrder.customerEmail,
+                customerName: currentOrder.customerName,
+                orderId: currentOrder.orderId
+            })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            currentDeliveryCode = deliveryCode; // Store for verification
+            closeDeliveryDetailModal();
+            showNotification('✉️ Delivery code sent to customer email!', 'success');
+            
+            // Show code verification modal after a short delay
+            setTimeout(() => {
+                openCodeVerificationModal(currentOrder);
+            }, 500);
+        } else {
+            const error = await response.json();
+            showNotification(error.error || 'Failed to send code', 'danger');
+        }
+    } catch (error) {
+        console.error('Error sending code:', error);
+        showNotification('Error sending code', 'danger');
+    }
 }
 
 async function updateDeliveryStatus() {
@@ -968,7 +1103,7 @@ async function updateDeliveryStatus() {
             closeDeliveryModal();
             showNotification('✉️ Delivery code sent to customer email!', 'success');
             // Show code verification modal
-            showCodeVerificationModal();
+            showCodeVerificationModal(currentOrder);
         } else {
             const error = await response.json();
             showNotification(error.error || 'Failed to send code', 'danger');
@@ -988,6 +1123,55 @@ function openCodeModal() {
 
 function closeCodeModal() {
     document.getElementById('codeModal').classList.remove('show');
+}
+
+async function verifyDeliveryCodeFromModal() {
+    const enteredCode = document.getElementById('deliveryCodeInput').value;
+    const errorElement = document.getElementById('codeVerifyError');
+
+    if (!enteredCode) {
+        errorElement.textContent = 'Please enter the code';
+        return;
+    }
+
+    if (!currentOrder || !currentRiderOrderId) {
+        errorElement.textContent = 'Order information missing';
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem('riderToken');
+        
+        // Call verify-code endpoint - updates delivery_orders status to "delivered"
+        const response = await fetch(`${API_BASE}/api/rider-orders/${currentRiderOrderId}/verify-code`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                code: enteredCode
+            })
+        });
+
+        if (response.ok) {
+            closeCodeVerificationModal();
+            showNotification('✅ Delivery completed! Confirmation emails sent.', 'success');
+            
+            // Reload deliveries after delay
+            setTimeout(() => {
+                loadActiveDeliveries();
+                loadCompletedDeliveries();
+                updateDashboardStats();
+            }, 500);
+        } else {
+            const error = await response.json();
+            errorElement.textContent = error.error || 'Invalid code. Please try again.';
+        }
+    } catch (error) {
+        console.error('Error verifying code:', error);
+        errorElement.textContent = 'Error verifying code. Try again.';
+    }
 }
 
 async function verifyDeliveryCode() {
@@ -1044,8 +1228,8 @@ async function loadCompletedOrders() {
         const riderId = localStorage.getItem('riderId');
         const token = localStorage.getItem('riderToken');
 
-        // Fetch completed orders from delivery_orders table
-        const response = await fetch(`${API_BASE}/api/rider/${riderId}/completed-orders`, {
+        // Fetch completed orders from delivery_orders table (status: delivered)
+        const response = await fetch(`${API_BASE}/api/rider/${riderId}/delivery-orders/completed`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -1055,7 +1239,7 @@ async function loadCompletedOrders() {
             const completedOrders = completedOrderData.map(ord => ({
                 id: ord.order_id || ord.id,
                 orderId: ord.order_id || ord.id,
-                riderOrderId: ord.id,
+                deliveryOrderId: ord.id,
                 customerName: ord.customer_name || 'Unknown',
                 customerPhone: ord.customer_phone || 'N/A',
                 customerEmail: ord.customer_email || 'N/A',

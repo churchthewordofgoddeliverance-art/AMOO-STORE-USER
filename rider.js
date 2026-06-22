@@ -1416,7 +1416,8 @@ window.addEventListener('load', () => {
 function openWithdrawalModal() {
     if (!riderData) return;
 
-    const completedCount = Object.keys(currentDeliveryStatus).filter(id => currentDeliveryStatus[id] === 'delivered').length;
+    // Get completed orders count from Supabase fetch
+    const completedCount = completedOrders.length;
     const earningsPerOrder = 1500;
     monthlyEarnings = completedCount * earningsPerOrder;
     totalEarnings = (riderData?.totalDeliveries || 0) * earningsPerOrder;

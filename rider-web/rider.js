@@ -607,15 +607,6 @@ async function acceptOrder() {
                 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({ riderId })
-    try {
-        // Call accept endpoint
-        const response = await fetch(`${API_BASE}/api/rider-orders/${riderOrderId}/accept`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ riderId })
         });
 
         if (response.ok) {

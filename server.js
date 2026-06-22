@@ -2595,6 +2595,48 @@ app.post('/api/rider-orders/:riderOrderId/verify-code', async (req, res) => {
     
     console.log(`📧 Admin notified about delivery of order ${deliveryOrder.order_id}`);
     
+    // Send delivery confirmation email to RIDER
+    const riderEmailTemplate = {
+      subject: `✅ Delivery Verified - Order #${deliveryOrder.order_id}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h2 style="color: #27ae60; margin-bottom: 20px;">✅ Delivery Successfully Verified!</h2>
+            
+            <p style="color: #666; font-size: 16px; line-height: 1.6;">
+              Hello ${deliveryOrder.rider_name},
+            </p>
+            
+            <p style="color: #666; font-size: 16px; line-height: 1.6;">
+              Your delivery has been successfully verified and marked as complete. Thank you for your service!
+            </p>
+            
+            <div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 5px 0; color: #333;"><strong>Order ID:</strong> ${deliveryOrder.order_id}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Customer:</strong> ${deliveryOrder.customer_name}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Delivery Address:</strong> ${deliveryOrder.delivery_address}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Order Amount:</strong> ₦${deliveryOrder.order_total.toLocaleString()}</p>
+              <p style="margin: 5px 0; color: #333;"><strong>Delivery Time:</strong> ${new Date(deliveredAt).toLocaleString()}</p>
+            </div>
+            
+            <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+              Keep up the great work! Your ratings and reliability help us maintain excellent service.
+            </p>
+          </div>
+        </div>
+      `,
+      text: `Delivery Successfully Verified!\n\nOrder ID: ${deliveryOrder.order_id}\nCustomer: ${deliveryOrder.customer_name}\nDelivery Address: ${deliveryOrder.delivery_address}\nOrder Amount: ₦${deliveryOrder.order_total.toLocaleString()}\nDelivery Time: ${new Date(deliveredAt).toLocaleString()}\n\nThank you for your service!`
+    };
+    
+    sendEmailViaBrevo(
+      deliveryOrder.rider_email,
+      riderEmailTemplate.subject,
+      riderEmailTemplate.html,
+      riderEmailTemplate.text
+    ).catch(err => console.warn('Failed to send rider notification:', err.message));
+    
+    console.log(`📧 Rider ${deliveryOrder.rider_id} notified about delivery verification of order ${deliveryOrder.order_id}`);
+    
     res.json({ success: true, message: 'Order marked as delivered', order: deliveryOrder });
   } catch (error) {
     console.error('❌ Error verifying code:', error);

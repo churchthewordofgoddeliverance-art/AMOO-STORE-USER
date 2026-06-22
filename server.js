@@ -2152,25 +2152,83 @@ app.get('/api/rider/:riderId/completed-orders', async (req, res) => {
   }
 });
 
+// GET Active Delivery Orders (NEW endpoint for frontend)
+app.get('/api/rider/:riderId/delivery-orders/active', async (req, res) => {
+  try {
+    // Fetch active delivery orders for this rider (status: accepted or code-sent)
+    const { data: activeOrders, error } = await supabase
+      .from('delivery_orders')
+      .select('*')
+      .eq('rider_id', req.params.riderId)
+      .in('status', ['accepted', 'code-sent'])
+      .order('accepted_at', { ascending: false });
+    
+    if (error) {
+      console.error('❌ Failed to fetch active delivery orders:', error.message);
+      return res.status(500).json({ error: 'Failed to fetch active delivery orders' });
+    }
+    
+    console.log(`✅ Fetched ${activeOrders?.length || 0} active delivery orders for rider ${req.params.riderId}`);
+    res.json(activeOrders || []);
+  } catch (error) {
+    console.error('❌ Error fetching active delivery orders:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET Completed Delivery Orders (NEW endpoint for frontend)
+app.get('/api/rider/:riderId/delivery-orders/completed', async (req, res) => {
+  try {
+    // Fetch completed delivery orders for this rider (status: delivered)
+    const { data: completedOrders, error } = await supabase
+      .from('delivery_orders')
+      .select('*')
+      .eq('rider_id', req.params.riderId)
+      .eq('status', 'delivered')
+      .order('delivered_at', { ascending: false });
+    
+    if (error) {
+      console.error('❌ Failed to fetch completed delivery orders:', error.message);
+      return res.status(500).json({ error: 'Failed to fetch completed delivery orders' });
+    }
+    
+    console.log(`✅ Fetched ${completedOrders?.length || 0} completed delivery orders for rider ${req.params.riderId}`);
+    res.json(completedOrders || []);
+  } catch (error) {
+    console.error('❌ Error fetching completed delivery orders:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET Available orders for riders from rider_order_table_2
 app.get('/api/rider-orders/available', async (req, res) => {
   try {
     console.log('📋 Fetching available orders from rider_order_table_2...');
     
-    // Fetch from Supabase rider_order_table_2 where status is 'shipped'
-    const { data: availableOrders, error } = await supabase
+    // First, fetch all orders from rider_order_table_2 with status 'shipped'
+    const { data: allOrders, error: fetchError } = await supabase
       .from('rider_order_table_2')
       .select('*')
       .eq('status', 'shipped')
       .order('assigned_at', { ascending: false });
     
-    if (error) {
-      console.warn('⚠️ Failed to fetch available orders from Supabase:', error.message);
+    if (fetchError) {
+      console.warn('⚠️ Failed to fetch available orders from Supabase:', fetchError.message);
       return res.status(500).json({ error: 'Failed to fetch available orders' });
     }
+
+    // Then, fetch all order_ids from delivery_orders to filter them out
+    const { data: deliveryOrders, error: deliveryError } = await supabase
+      .from('delivery_orders')
+      .select('order_id');
     
-    console.log(`✅ Fetched ${availableOrders?.length || 0} available orders from rider_order_table_2`);
-    res.json(availableOrders || []);
+    const acceptedOrderIds = new Set((deliveryOrders || []).map(o => o.order_id));
+    
+    // Filter out orders that are already in delivery_orders
+    const availableOrders = (allOrders || []).filter(order => !acceptedOrderIds.has(order.order_id));
+    
+    console.log(`✅ Fetched ${availableOrders.length} available orders (out of ${allOrders?.length || 0} total in rider_order_table_2)`);
+    res.json(availableOrders);
   } catch (error) {
     console.error('❌ Error fetching available orders:', error);
     res.status(500).json({ error: 'Internal server error' });

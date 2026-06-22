@@ -204,5 +204,18 @@ function getStatusColor(status) {
 
 // Load orders on page load
 if (document.body.dataset.page === 'order') {
-  fetchCustomerOrders();
+  // Wait for Supabase to be initialized
+  async function waitForSupabase() {
+    let attempts = 0;
+    while (!window.supabase && attempts < 20) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+      attempts++;
+    }
+    if (window.supabase) {
+      fetchCustomerOrders();
+    } else {
+      console.error('❌ Supabase client not initialized after waiting');
+    }
+  }
+  waitForSupabase();
 }

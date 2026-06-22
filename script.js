@@ -73,6 +73,39 @@ let PRODUCTS = [
   }
 ];
 
+// Initialize Supabase Client
+async function initializeSupabase() {
+  try {
+    // Fetch config from backend
+    const response = await fetch('https://amoo-store-user-i18d.onrender.com/api/config');
+    if (response.ok) {
+      const { supabaseUrl, supabaseAnonKey } = await response.json();
+      
+      // Wait for Supabase library to be available
+      if (!window.supabase || !window.supabase.createClient) {
+        console.warn('⏳ Waiting for Supabase library to load...');
+        setTimeout(initializeSupabase, 500);
+        return;
+      }
+      
+      // Create Supabase client instance
+      window.supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+      console.log('✅ Supabase client initialized');
+    }
+  } catch (error) {
+    console.error('❌ Failed to initialize Supabase:', error);
+  }
+}
+
+// Initialize Supabase when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeSupabase);
+} else {
+  initializeSupabase();
+}
+
+
+
 // Fetch products from backend if on shop page
 async function loadProductsFromBackend() {
   if (document.querySelector('[data-page="shop"]')) {

@@ -346,21 +346,33 @@ function loadRiderProfile() {
 async function fetchCompletedDeliveriesCount() {
     try {
         const riderId = localStorage.getItem('riderId');
-        const token = localStorage.getItem('riderToken');
         
-        const response = await fetch(`${API_BASE}/api/rider/${riderId}/delivery-orders/completed`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok) {
-            const completedDeliveries = await response.json();
-            const count = Array.isArray(completedDeliveries) ? completedDeliveries.length : 0;
-            document.getElementById('totalDeliveries').textContent = count;
-            console.log(`✅ Completed deliveries: ${count}`);
+        if (!riderId) return;
+
+        // Wait for Supabase client to be available
+        let attempts = 0;
+        while (!window.supabase || !window.supabase.from || typeof window.supabase.from !== 'function') {
+            if (attempts > 20) {
+                throw new Error('Supabase client not initialized');
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+
+        // Count completed deliveries from Supabase
+        const { count, error } = await window.supabase
+            .from('delivery_orders')
+            .select('*', { count: 'exact', head: true })
+            .eq('rider_id', riderId)
+            .eq('status', 'delivered');
+
+        if (!error) {
+            document.getElementById('totalDeliveries').textContent = count || 0;
+            console.log(`✅ Completed deliveries: ${count || 0}`);
         }
     } catch (error) {
-        console.error('Error fetching completed deliveries:', error);
-        document.getElementById('totalDeliveries').textContent = riderData.totalDeliveries || 0;
+        console.error('Error fetching completed deliveries count:', error);
+        document.getElementById('totalDeliveries').textContent = riderData?.totalDeliveries || 0;
     }
 }
 
@@ -722,32 +734,52 @@ function rejectOrder() {
 async function loadCompletedDeliveries() {
     try {
         const riderId = localStorage.getItem('riderId');
-        const token = localStorage.getItem('riderToken');
-
-        // Fetch completed orders from delivery_orders table (status: delivered)
-        const response = await fetch(`${API_BASE}/api/rider/${riderId}/delivery-orders/completed`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (response.ok) {
-            const completedRiderOrders = await response.json();
-            completedOrders = completedRiderOrders.map(ord => ({
-                id: ord.order_id,
-                orderId: ord.order_id,
-                deliveryOrderId: ord.id,
-                customerName: ord.customer_name || 'Unknown',
-                customerPhone: ord.customer_phone || 'N/A',
-                customerEmail: ord.customer_email || 'N/A',
-                items: (ord.order_items && Array.isArray(ord.order_items)) ? ord.order_items : [],
-                total: ord.order_total || 0,
-                address: ord.delivery_address || 'N/A',
-                city: ord.delivery_city || '',
-                state: ord.delivery_state || '',
-                status: 'delivered',
-                deliveredAt: ord.delivered_at
-            }));
-            displayCompletedDeliveries();
+        
+        if (!riderId) {
+            console.error('No rider ID found');
+            return;
         }
+
+        // Wait for Supabase client to be available
+        let attempts = 0;
+        while (!window.supabase || !window.supabase.from || typeof window.supabase.from !== 'function') {
+            if (attempts > 20) {
+                throw new Error('Supabase client not initialized');
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+
+        // Fetch completed deliveries from Supabase delivery_orders table
+        const { data: completedRiderOrders, error } = await window.supabase
+            .from('delivery_orders')
+            .select('*')
+            .eq('rider_id', riderId)
+            .eq('status', 'delivered')
+            .order('delivered_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching completed deliveries from Supabase:', error);
+            return;
+        }
+
+        completedOrders = (completedRiderOrders || []).map(ord => ({
+            id: ord.order_id,
+            orderId: ord.order_id,
+            deliveryOrderId: ord.id,
+            customerName: ord.customer_name || 'Unknown',
+            customerPhone: ord.customer_phone || 'N/A',
+            customerEmail: ord.customer_email || 'N/A',
+            items: (ord.order_items && Array.isArray(ord.order_items)) ? ord.order_items : [],
+            total: ord.order_total || 0,
+            address: ord.delivery_address || 'N/A',
+            city: ord.delivery_city || '',
+            state: ord.delivery_state || '',
+            status: 'delivered',
+            deliveredAt: ord.delivered_at
+        }));
+        displayCompletedDeliveries();
+        console.log(`✅ Loaded ${completedOrders.length} completed deliveries from Supabase`);
     } catch (error) {
         console.error('Error loading completed deliveries:', error);
     }

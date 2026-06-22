@@ -605,11 +605,12 @@ async function acceptOrder() {
 
         if (response.ok) {
             const result = await response.json();
+            const acceptedOrderId = currentOrder.id; // Save before closing modal
             closeOrderModal();
             await loadAvailableOrders();
             await loadActiveDeliveries();
             updateDashboardStats();
-            showNotification(`Order ${currentOrder.id} accepted! Ready for code.`, 'success');
+            showNotification(`Order ${acceptedOrderId} accepted! Ready for code.`, 'success');
         } else {
             const error = await response.json();
             showNotification(error.error || 'Failed to accept order', 'danger');
@@ -975,81 +976,45 @@ function closeDeliveryModal() {
 
 function showCodeSection() {
     document.getElementById('codeSection').style.display = 'block';
-    const code = generateDeliveryCode();
-    currentDeliveryCode = code;
-    document.getElementById('generatedCode').textContent = code;
-    document.getElementById('codeMessage').textContent = `Code will be sent to ${currentOrder.customerEmail}`;
+    document.getElementById('codeMessage').textContent = `Requesting code to be sent to ${currentOrder.customerEmail}...`;
 }
 
 function generateDeliveryCode() {
-    return Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    return Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
 }
 
 async function updateDeliveryStatus() {
-    if (!currentOrder) return;
-
-    const status = document.querySelector('input[name="status"]:checked')?.value;
-    if (!status) {
-        showNotification('Please select a status', 'warning');
+    // This function now just sends the delivery code
+    if (!currentOrder || !currentRiderOrderId) {
+        showNotification('Order information missing', 'danger');
         return;
     }
 
     try {
         const token = localStorage.getItem('riderToken');
-        const riderAssignmentId = currentOrder.riderAssignmentId;
         
-        const updateData = {
-            status: status,
-            notes: document.getElementById('statusNotes').value
-        };
-
-        // If status is arrived, send code to customer email
-        if (status === 'arrived' && currentDeliveryCode) {
-            updateData.deliveryCode = currentDeliveryCode;
-            updateData.customerEmail = currentOrder.customerEmail;
-
-            // Send email with code
-            await fetch(`${API_BASE}/api/send-delivery-code`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    orderId: currentOrder.id,
-                    customerEmail: currentOrder.customerEmail,
-                    customerName: currentOrder.customerName,
-                    code: currentDeliveryCode
-                })
-            });
-        }
-
-        // Update order status using new order-riders endpoint
-        const response = await fetch(`${API_BASE}/api/order-riders/${riderAssignmentId}/status`, {
-            method: 'PUT',
+        // Send code request to customer
+        const response = await fetch(`${API_BASE}/api/rider-orders/${currentRiderOrderId}/send-code`, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(updateData)
+            }
         });
 
         if (response.ok) {
-            currentDeliveryStatus[currentOrder.id] = status;
-            
-            if (status === 'arrived') {
-                showNotification(`Code sent to customer: ${currentDeliveryCode}`, 'success');
-            } else {
-                showNotification(`Status updated to ${status}`, 'success');
-            }
-            
+            const result = await response.json();
             closeDeliveryModal();
-            await loadActiveDeliveries();
-            updateDashboardStats();
+            showNotification('✉️ Delivery code sent to customer email!', 'success');
+            // Show code verification modal
+            showCodeVerificationModal();
+        } else {
+            const error = await response.json();
+            showNotification(error.error || 'Failed to send code', 'danger');
         }
     } catch (error) {
-        console.error('Error updating status:', error);
-        showNotification('Error updating status', 'danger');
+        console.error('Error sending code:', error);
+        showNotification('Error sending code', 'danger');
     }
 }
 
@@ -1080,28 +1045,31 @@ async function verifyDeliveryCode() {
 
     try {
         const token = localStorage.getItem('riderToken');
-
-        // Mark as delivered
-        const response = await fetch(`${API_BASE}/api/order/${currentOrder.id}/delivered`, {
-            method: 'PUT',
+        
+        // Call new verify-code endpoint with delivery order ID
+        const response = await fetch(`${API_BASE}/api/rider-orders/${currentRiderOrderId}/verify-code`, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
-                code: enteredCode,
-                customerEmail: currentOrder.customerEmail
+                code: enteredCode
             })
         });
 
         if (response.ok) {
             currentDeliveryStatus[currentOrder.id] = 'delivered';
             closeCodeModal();
-            showNotification('Delivery completed! Emails sent to customer and admin.', 'success');
+            closeCodeVerificationModal();
+            showNotification('✅ Delivery completed! Confirmation emails sent.', 'success');
             
             await loadActiveDeliveries();
             await loadCompletedOrders();
             updateDashboardStats();
+        } else {
+            const error = await response.json();
+            errorElement.textContent = error.error || 'Invalid code or verification failed';
         }
     } catch (error) {
         console.error('Error verifying code:', error);
@@ -1115,35 +1083,30 @@ async function loadCompletedOrders() {
         const riderId = localStorage.getItem('riderId');
         const token = localStorage.getItem('riderToken');
 
-        // Fetch completed orders assigned to this rider from order_riders table
-        const response = await fetch(`${API_BASE}/api/order-riders/rider/${riderId}?status=delivered`, {
+        // Fetch completed orders from delivery_orders table
+        const response = await fetch(`${API_BASE}/api/rider/${riderId}/completed-orders`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (response.ok) {
-            const completedOrderRiders = await response.json();
-            // Filter to only delivered orders
-            const completedOrders = completedOrderRiders
-                .filter(ord => ord.status === 'delivered')
-                .map(ord => {
-                    // Handle nested orders data
-                    const orderData = ord.orders || ord;
-                    return {
-                        id: ord.order_id || ord.id,
-                        orderId: ord.order_id || ord.id,
-                        riderAssignmentId: ord.id || ord.riderAssignmentId,
-                        customerName: orderData.customerName || 'Unknown',
-                        customerPhone: orderData.customerPhone || 'N/A',
-                        customerEmail: orderData.customerEmail || 'N/A',
-                        items: (orderData.items && Array.isArray(orderData.items)) ? orderData.items : [],
-                        total: orderData.total || 0,
-                        address: orderData.address || orderData.deliveryAddress || 'N/A',
-                        distance: orderData.distance || 0,
-                        paymentMethod: orderData.paymentMethod || 'N/A',
-                        deliveredAt: ord.delivered_at,
-                        status: 'delivered'
-                    };
-                });
+            const completedOrderData = await response.json();
+            // Map completed delivery orders
+            const completedOrders = completedOrderData.map(ord => ({
+                id: ord.order_id || ord.id,
+                orderId: ord.order_id || ord.id,
+                riderOrderId: ord.id,
+                customerName: ord.customer_name || 'Unknown',
+                customerPhone: ord.customer_phone || 'N/A',
+                customerEmail: ord.customer_email || 'N/A',
+                items: (ord.order_items && Array.isArray(ord.order_items)) ? ord.order_items : [],
+                total: ord.order_total || 0,
+                address: ord.delivery_address || 'N/A',
+                city: ord.delivery_city || '',
+                state: ord.delivery_state || '',
+                distance: 0,
+                deliveredAt: ord.delivered_at,
+                status: 'delivered'
+            }));
             displayCompletedOrders(completedOrders);
         }
     } catch (error) {

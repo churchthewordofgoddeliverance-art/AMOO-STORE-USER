@@ -2109,12 +2109,12 @@ app.put('/api/order/:orderId/delivered', async (req, res) => {
 // GET Rider's Active Orders
 app.get('/api/rider/:riderId/active-orders', async (req, res) => {
   try {
-    // Fetch active orders for this rider from rider_order_table_2
+    // Fetch active orders for this rider from delivery_orders table
     const { data: activeOrders, error } = await supabase
-      .from('rider_order_table_2')
+      .from('delivery_orders')
       .select('*')
       .eq('rider_id', req.params.riderId)
-      .in('status', ['accepted', 'on-way'])
+      .in('status', ['accepted', 'code-sent'])
       .order('accepted_at', { ascending: false });
     
     if (error) {
@@ -2132,9 +2132,9 @@ app.get('/api/rider/:riderId/active-orders', async (req, res) => {
 // GET Rider's Completed Orders
 app.get('/api/rider/:riderId/completed-orders', async (req, res) => {
   try {
-    // Fetch completed orders for this rider from rider_order_table_2
+    // Fetch completed orders for this rider from delivery_orders
     const { data: completedOrders, error } = await supabase
-      .from('rider_order_table_2')
+      .from('delivery_orders')
       .select('*')
       .eq('rider_id', req.params.riderId)
       .eq('status', 'delivered')
@@ -2191,18 +2191,18 @@ app.post('/api/rider-orders/:riderOrderId/accept', async (req, res) => {
       return res.status(400).json({ error: 'Rider ID is required' });
     }
 
-    // Fetch from rider_order_table_2
-    let { data: existingOrder, error: fetchError } = await supabase
+    // Fetch full order from rider_order_table_2
+    let { data: riderOrder, error: fetchError } = await supabase
       .from('rider_order_table_2')
-      .select('id, order_id, status, rider_id')
+      .select('*')
       .eq('id', riderOrderId)
       .single();
 
-    if (fetchError || !existingOrder) {
+    if (fetchError || !riderOrder) {
       // Try looking up by order_id if id doesn't work
       const lookupResult = await supabase
         .from('rider_order_table_2')
-        .select('id, order_id, status, rider_id')
+        .select('*')
         .eq('order_id', riderOrderId)
         .single();
 
@@ -2211,41 +2211,61 @@ app.post('/api/rider-orders/:riderOrderId/accept', async (req, res) => {
         return res.status(404).json({ error: 'Order not found' });
       }
 
-      existingOrder = lookupResult.data;
-      riderOrderId = existingOrder.id;
+      riderOrder = lookupResult.data;
+      riderOrderId = riderOrder.id;
     }
 
     // Check if already accepted by another rider
-    if (existingOrder.rider_id) {
+    if (riderOrder.rider_id) {
       return res.status(400).json({ error: 'This order has already been accepted by another rider' });
     }
 
+    // Get rider information
+    const { data: riderInfo, error: riderError } = await supabase
+      .from('riders')
+      .select('id, name, email, phone')
+      .eq('id', riderId)
+      .single();
+
+    if (riderError || !riderInfo) {
+      console.error('Rider not found:', riderId);
+      return res.status(400).json({ error: 'Rider information not found' });
+    }
+
     const acceptedAt = new Date().toISOString();
-    
-    // Update in rider_order_table_2
-    let { data: updatedOrder, error: updateError } = await supabase
-      .from('rider_order_table_2')
-      .update({
-        status: 'accepted',
+
+    // Create entry in delivery_orders table
+    const { data: deliveryOrder, error: deliveryError } = await supabase
+      .from('delivery_orders')
+      .insert([{
+        order_id: riderOrder.order_id,
         rider_id: riderId,
+        rider_name: riderInfo.name,
+        rider_email: riderInfo.email,
+        rider_phone: riderInfo.phone,
+        customer_name: riderOrder.customer_name,
+        customer_phone: riderOrder.customer_phone,
+        customer_email: riderOrder.customer_email,
+        delivery_address: riderOrder.delivery_address,
+        delivery_city: riderOrder.delivery_city,
+        delivery_state: riderOrder.delivery_state,
+        order_total: riderOrder.order_total,
+        order_items: riderOrder.order_items,
+        status: 'accepted',
         accepted_at: acceptedAt,
-        updated_at: acceptedAt
-      })
-      .eq('id', riderOrderId)
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }])
       .select()
       .single();
 
-    if (updateError) {
-      console.error('Failed to accept order:', updateError.message);
-      return res.status(500).json({ error: 'Failed to accept order', detail: updateError.message });
+    if (deliveryError) {
+      console.error('Failed to create delivery order:', deliveryError.message);
+      return res.status(500).json({ error: 'Failed to create delivery record', detail: deliveryError.message });
     }
 
-    if (!updatedOrder) {
-      return res.status(500).json({ error: 'Failed to accept order: No data returned' });
-    }
-
-    console.log(`✅ Rider ${riderId} accepted order ${updatedOrder.order_id}`);
-    res.json({ success: true, message: 'Order accepted', order: updatedOrder });
+    console.log(`✅ Rider ${riderId} accepted order ${riderOrder.order_id} - Created delivery record`);
+    res.json({ success: true, message: 'Order accepted', order: deliveryOrder });
   } catch (error) {
     console.error('❌ Error accepting order:', error);
     res.status(500).json({ error: 'Failed to accept order' });
@@ -2257,26 +2277,28 @@ app.post('/api/rider-orders/:riderOrderId/send-code', async (req, res) => {
   try {
     const { riderOrderId } = req.params;
     
-    // Fetch rider order details from rider_order_table_2
-    const { data: riderOrder, error: fetchError } = await supabase
-      .from('rider_order_table_2')
+    // Fetch from delivery_orders table
+    const { data: deliveryOrder, error: fetchError } = await supabase
+      .from('delivery_orders')
       .select('*')
       .eq('id', riderOrderId)
       .single();
     
-    if (fetchError || !riderOrder) {
-      return res.status(404).json({ error: 'Rider order not found' });
+    if (fetchError || !deliveryOrder) {
+      return res.status(404).json({ error: 'Delivery order not found' });
     }
     
     // Generate a 6-digit code
     const deliveryCode = Math.floor(100000 + Math.random() * 900000).toString();
     
-    // Store code in rider_order_table_2 temporarily
+    // Update delivery_orders with code and status
     const { error: updateError } = await supabase
-      .from('rider_order_table_2')
+      .from('delivery_orders')
       .update({ 
         delivery_code: deliveryCode,
-        code_sent_at: new Date().toISOString()
+        code_sent_at: new Date().toISOString(),
+        status: 'code-sent',
+        updated_at: new Date().toISOString()
       })
       .eq('id', riderOrderId);
     
@@ -2287,14 +2309,14 @@ app.post('/api/rider-orders/:riderOrderId/send-code', async (req, res) => {
     
     // Send code to customer email
     const emailTemplate = {
-      subject: `🔐 Your Delivery Verification Code - Order #${riderOrder.order_id}`,
+      subject: `🔐 Your Delivery Verification Code - Order #${deliveryOrder.order_id}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
           <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
             <h2 style="color: #27ae60; margin-bottom: 20px;">🚚 Your Order is Being Delivered!</h2>
             
             <p style="color: #666; font-size: 16px; line-height: 1.6;">
-              Hello ${riderOrder.customer_name},
+              Hello ${deliveryOrder.customer_name},
             </p>
             
             <p style="color: #666; font-size: 16px; line-height: 1.6;">
@@ -2311,9 +2333,10 @@ app.post('/api/rider-orders/:riderOrderId/send-code', async (req, res) => {
             </div>
             
             <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin-top: 20px;">
-              <p style="margin: 5px 0; color: #666;"><strong>Order ID:</strong> ${riderOrder.order_id}</p>
-              <p style="margin: 5px 0; color: #666;"><strong>Delivery Address:</strong> ${riderOrder.delivery_address}</p>
-              <p style="margin: 5px 0; color: #666;"><strong>Order Total:</strong> ₦${riderOrder.order_total.toLocaleString()}</p>
+              <p style="margin: 5px 0; color: #666;"><strong>Order ID:</strong> ${deliveryOrder.order_id}</p>
+              <p style="margin: 5px 0; color: #666;"><strong>Delivery Address:</strong> ${deliveryOrder.delivery_address}</p>
+              <p style="margin: 5px 0; color: #666;"><strong>Rider Name:</strong> ${deliveryOrder.rider_name || 'Not Available'}</p>
+              <p style="margin: 5px 0; color: #666;"><strong>Order Total:</strong> ₦${deliveryOrder.order_total.toLocaleString()}</p>
             </div>
             
             <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
@@ -2322,17 +2345,17 @@ app.post('/api/rider-orders/:riderOrderId/send-code', async (req, res) => {
           </div>
         </div>
       `,
-      text: `Your Delivery Verification Code: ${deliveryCode}\n\nOrder #${riderOrder.order_id}\nDeliver to: ${riderOrder.delivery_address}\n\nPlease provide this code to the rider upon delivery.`
+      text: `Your Delivery Verification Code: ${deliveryCode}\n\nOrder #${deliveryOrder.order_id}\nDeliver to: ${deliveryOrder.delivery_address}\nRider: ${deliveryOrder.rider_name}\n\nPlease provide this code to the rider upon delivery.`
     };
     
     await sendEmailViaBrevo(
-      riderOrder.customer_email,
+      deliveryOrder.customer_email,
       emailTemplate.subject,
       emailTemplate.html,
       emailTemplate.text
     );
     
-    console.log(`✅ Delivery code sent to ${riderOrder.customer_email}: ${deliveryCode}`);
+    console.log(`✅ Delivery code sent to ${deliveryOrder.customer_email}: ${deliveryCode}`);
     res.json({ success: true, message: 'Code sent to customer email', code: deliveryCode });
   } catch (error) {
     console.error('❌ Error sending delivery code:', error);

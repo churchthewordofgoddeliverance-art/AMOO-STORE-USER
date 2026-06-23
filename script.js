@@ -1185,29 +1185,35 @@ Please confirm my order. I will proceed with bank transfer payment.`;
           localStorage.setItem('ademola-cloth-house-orders', JSON.stringify(orders));
 
           // Also save to backend
-          fetch('https://amoo-store-user-i18d.onrender.com/api/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(order)
-          })
-            .then(response => {
-              if (!response.ok) {
-                console.error('Order save error:', response.status);
-                return response.json().then(err => {
-                  console.error('Backend error details:', err);
-                });
-              }
-              return response.json();
-            })
-            .then(data => {
-              if (data?.success) {
-                console.log('✅ Order saved to backend and Supabase:', order.id);
-              }
-            })
-            .catch(err => {
-              console.error('❌ Backend order save failed:', err);
-              console.log('Order saved locally, please refresh to sync with Supabase');
+          try {
+            const response = await fetch('https://amoo-store-user-i18d.onrender.com/api/orders', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(order)
             });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              console.error('Order save error:', response.status, errorData);
+              if (checkoutMessage) {
+                checkoutMessage.textContent = 'Unable to submit order to the server. Please try again later.';
+              }
+              return;
+            }
+
+            const data = await response.json();
+            if (data?.success) {
+              console.log('✅ Order saved to backend and Supabase:', order.id);
+            } else {
+              console.warn('⚠️ Order saved locally but backend returned no success flag:', data);
+            }
+          } catch (err) {
+            console.error('❌ Backend order save failed:', err);
+            if (checkoutMessage) {
+              checkoutMessage.textContent = 'Unable to submit order to the server. Please try again later.';
+            }
+            return;
+          }
 
           // Show order pending status
           paymentInstructions.innerHTML = `

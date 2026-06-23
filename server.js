@@ -285,8 +285,10 @@ async function syncOrderToSupabase(order) {
     }
     
     console.log('✅ Order fully synced to Supabase:', order.id);
+    return true;
   } catch (error) {
     console.error('❌ Supabase order sync error:', error);
+    return false;
   }
 }
 
@@ -817,7 +819,7 @@ app.get('/api/orders/:customerEmail', (req, res) => {
 
 // POST create new order
 app.post('/api/orders', async (req, res) => {
-  const { id, customerId, customerName, customerEmail, phone, address, items, subtotal, delivery, total, status, paymentMethod, createdAt } = req.body;
+  const { id, customerId, customerName, customerEmail, phone, address, items, subtotal, delivery, total, status, paymentMethod, createdAt, deliveryDate } = req.body;
 
   if (!customerEmail || !items || !total) {
     return res.status(400).json({ error: 'Missing required order fields' });
@@ -837,13 +839,19 @@ app.post('/api/orders', async (req, res) => {
     total,
     status: status || 'pending',
     paymentMethod: paymentMethod || 'bank_transfer',
-    createdAt: createdAt || new Date().toISOString()
+    createdAt: createdAt || new Date().toISOString(),
+    deliveryDate: deliveryDate || null
   };
 
   orders.push(newOrder);
   if (writeJSON(ordersFilePath, orders)) {
-    // Sync to Supabase
-    syncOrderToSupabase(newOrder);
+    // Sync to Supabase and wait for the result
+    let syncSuccess = false;
+    try {
+      syncSuccess = await syncOrderToSupabase(newOrder);
+    } catch (syncError) {
+      console.error('❌ Supabase sync failed:', syncError);
+    }
     
     // Send order confirmation email
     sendOrderConfirmationEmail(

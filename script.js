@@ -236,10 +236,12 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     console.log('📜 script.js: DOMContentLoaded fired, starting Supabase init...');
     supabaseInitPromise = startSupabaseInitialization();
+    window.supabaseInitPromise = supabaseInitPromise;
   });
 } else {
   console.log('📜 script.js: DOM already loaded, starting Supabase init immediately...');
   supabaseInitPromise = startSupabaseInitialization();
+  window.supabaseInitPromise = supabaseInitPromise;
 }
 
 console.log('📜 script.js: Initialization setup complete');

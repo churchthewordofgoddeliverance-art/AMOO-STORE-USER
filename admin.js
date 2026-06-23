@@ -42,7 +42,6 @@ async function initializeSupabase() {
       };
       
       console.log('✅ Supabase client initialized in admin');
-    }
   } catch (error) {
     console.error('❌ Failed to initialize Supabase in admin:', error);
   }
@@ -359,7 +358,31 @@ async function loadAnalytics() {
       const status = (order.status || 'pending').toLowerCase();
       counts[status] = (counts[status] || 0) + 1;
       return counts;
-    }, {});
+          // Ensure Supabase library is available (try to reuse global initializer)
+          if (window.supabaseInitPromise) {
+            await window.supabaseInitPromise;
+          } else {
+            // Try to load the library directly if no global initializer exists
+            await (async function ensureSupabaseLibraryLoaded() {
+              if (window.supabase && typeof window.supabase.createClient === 'function') return true;
+              return new Promise((resolve) => {
+                const existing = [...document.scripts].find(s => s.src && s.src.includes('supabase'));
+                if (existing) {
+                  existing.addEventListener('load', () => resolve(!!window.supabase));
+                  existing.addEventListener('error', () => resolve(false));
+                  return;
+                }
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+                script.async = true;
+                script.crossOrigin = 'anonymous';
+                script.onload = () => resolve(!!window.supabase);
+                script.onerror = () => resolve(false);
+                document.head.appendChild(script);
+              });
+            })();
+          }
+  
 
     const topProducts = {};
     if (Array.isArray(orders)) {

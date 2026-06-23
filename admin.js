@@ -1,27 +1,13 @@
-const ADMIN_API = window.BACKEND_URL || 'https://amoo-store-user-i18d.onrender.com';
+const ADMIN_API = '';
 let adminSession = null;
 
 // Initialize Supabase Client
 async function initializeSupabase() {
   try {
-    // Determine base URL (use ADMIN_API if set, otherwise current origin)
-    const base = ADMIN_API || window.location.origin || '';
-
     // Fetch config from backend
-    const response = await fetch(`${base}/api/config`);
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Failed to fetch config: ${response.status} ${response.statusText} - ${text.slice(0,200)}`);
-    }
-
-    // Ensure response is JSON
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Expected JSON from /api/config but received: ${text.slice(0,200)}`);
-    }
-
-    const { supabaseUrl, supabaseAnonKey } = await response.json();
+    const response = await fetch(`${ADMIN_API}/api/config`);
+    if (response.ok) {
+      const { supabaseUrl, supabaseAnonKey } = await response.json();
       
       // Check if Supabase module has createClient method
       if (!window.supabase?.createClient) {
@@ -42,6 +28,7 @@ async function initializeSupabase() {
       };
       
       console.log('✅ Supabase client initialized in admin');
+    }
   } catch (error) {
     console.error('❌ Failed to initialize Supabase in admin:', error);
   }
@@ -358,31 +345,7 @@ async function loadAnalytics() {
       const status = (order.status || 'pending').toLowerCase();
       counts[status] = (counts[status] || 0) + 1;
       return counts;
-          // Ensure Supabase library is available (try to reuse global initializer)
-          if (window.supabaseInitPromise) {
-            await window.supabaseInitPromise;
-          } else {
-            // Try to load the library directly if no global initializer exists
-            await (async function ensureSupabaseLibraryLoaded() {
-              if (window.supabase && typeof window.supabase.createClient === 'function') return true;
-              return new Promise((resolve) => {
-                const existing = [...document.scripts].find(s => s.src && s.src.includes('supabase'));
-                if (existing) {
-                  existing.addEventListener('load', () => resolve(!!window.supabase));
-                  existing.addEventListener('error', () => resolve(false));
-                  return;
-                }
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-                script.async = true;
-                script.crossOrigin = 'anonymous';
-                script.onload = () => resolve(!!window.supabase);
-                script.onerror = () => resolve(false);
-                document.head.appendChild(script);
-              });
-            })();
-          }
-  
+    }, {});
 
     const topProducts = {};
     if (Array.isArray(orders)) {

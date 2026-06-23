@@ -1,25 +1,13 @@
-const ADMIN_API = window.BACKEND_URL || 'https://amoo-store-user-i18d.onrender.com';
+const ADMIN_API = '';
 let adminSession = null;
 
 // Initialize Supabase Client
 async function initializeSupabase() {
   try {
-    const base = ADMIN_API || window.location.origin || '';
-
     // Fetch config from backend
-    const response = await fetch(`${base}/api/config`);
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Failed to fetch config: ${response.status} ${response.statusText} - ${text.slice(0,200)}`);
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Expected JSON from /api/config but received: ${text.slice(0,200)}`);
-    }
-
-    const { supabaseUrl, supabaseAnonKey } = await response.json();
+    const response = await fetch(`${ADMIN_API}/api/config`);
+    if (response.ok) {
+      const { supabaseUrl, supabaseAnonKey } = await response.json();
       
       // Check if Supabase module has createClient method
       if (!window.supabase?.createClient) {
@@ -48,59 +36,49 @@ async function initializeSupabase() {
 
 // Initialize Supabase when script loads
 initializeSupabase();
-  try {
-    if (window.supabaseInitPromise) {
-      await window.supabaseInitPromise;
-    } else {
-      // Load library if missing
-      await (async function ensureSupabaseLibraryLoaded() {
-        if (window.supabase && typeof window.supabase.createClient === 'function') return true;
-        return new Promise((resolve) => {
-          const existing = [...document.scripts].find(s => s.src && s.src.includes('supabase'));
-          if (existing) {
-            existing.addEventListener('load', () => resolve(!!window.supabase));
-            existing.addEventListener('error', () => resolve(false));
-            return;
-          }
-          const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-          script.async = true;
-          script.crossOrigin = 'anonymous';
-          script.onload = () => resolve(!!window.supabase);
-          script.onerror = () => resolve(false);
-          document.head.appendChild(script);
-        });
-      })();
-    }
 
-    const base = ADMIN_API || window.location.origin || '';
-    const response = await fetch(`${base}/api/config`);
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Failed to fetch config: ${response.status} ${response.statusText} - ${text.slice(0,200)}`);
-    }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Expected JSON from /api/config but received: ${text.slice(0,200)}`);
-    }
+// DOM Elements
+const authModal = document.getElementById('auth-modal');
+const registerModal = document.getElementById('register-modal');
+const adminLoginForm = document.getElementById('admin-login-form');
+const adminRegisterForm = document.getElementById('admin-register-form');
+const switchToRegisterBtn = document.getElementById('switch-to-register');
+const switchToLoginBtn = document.getElementById('switch-to-login');
+const logoutBtn = document.querySelector('[data-logout]');
+const adminNameEl = document.getElementById('admin-name');
+const adminEmailEl = document.getElementById('admin-email');
+const navLinks = document.querySelectorAll('.nav-link');
+const pageSections = document.querySelectorAll('.page-section');
+const pageTitle = document.getElementById('page-title');
+const pageSubtitle = document.getElementById('page-subtitle');
+const productsListEl = document.getElementById('products-list');
+const productModal = document.getElementById('product-modal');
+const productForm = document.getElementById('product-form');
+const productModalTitle = document.getElementById('product-modal-title');
+const productModalClose = document.getElementById('product-modal-close');
+const productModalCancel = document.getElementById('product-modal-cancel');
+const orderDetailsModal = document.getElementById('order-details-modal');
+const orderDetailsClose = document.getElementById('order-details-close');
+const orderDetailsCloseBtn = document.getElementById('order-details-close-btn');
+const orderDetailsContent = document.getElementById('order-details-content');
+const orderDetailsTitle = document.getElementById('order-details-title');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+const sidebarOverlay = document.getElementById('sidebar-overlay');
+const adminSidebar = document.querySelector('.admin-sidebar');
+const analyticsContainer = document.querySelector('.analytics-container');
 
-    const { supabaseUrl, supabaseAnonKey } = await response.json();
+let productsCache = [];
+let editingProductId = null;
+let ordersCache = [];
 
-    if (!window.supabase?.createClient) throw new Error('Supabase library not loaded');
-    const { createClient } = window.supabase;
-    window.supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-    window.supabase = {
-      ...window.supabase,
-      from: window.supabaseClient.from.bind(window.supabaseClient),
-      select: window.supabaseClient.select?.bind(window.supabaseClient)
-    };
-
-    console.log('✅ Supabase client initialized in admin');
-  } catch (error) {
-    console.error('❌ Failed to initialize Supabase in admin:', error);
-  }
+// Page titles
+const pageTitles = {
+  dashboard: { title: 'AMOO STORE Dashboard', subtitle: 'Welcome to AMOO STORE Management' },
+  products: { title: 'AMOO STORE Products', subtitle: 'Manage your fashion collection' },
+  customers: { title: 'AMOO STORE Customers', subtitle: 'Manage all customers' },
+  orders: { title: 'AMOO STORE Orders', subtitle: 'Track and manage orders' },
+  inventory: { title: 'AMOO STORE Inventory', subtitle: 'Monitor stock levels' },
   analytics: { title: 'AMOO STORE Analytics', subtitle: 'View sales reports' },
   messages: { title: 'AMOO STORE Messages', subtitle: 'Send messages to customers' },
   riders: { title: 'AMOO STORE Riders', subtitle: 'Manage delivery riders' },

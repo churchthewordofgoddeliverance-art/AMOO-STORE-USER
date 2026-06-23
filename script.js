@@ -252,12 +252,39 @@ console.log('📜 script.js: Initialization setup complete');
 async function loadProductsFromBackend() {
   if (document.querySelector('[data-page="shop"]')) {
     try {
-      console.log('🛍️ Fetching products from Supabase...');
+      console.log('🛍️ Loading products (prefer direct Supabase client when available)...');
+      // Prefer direct Supabase client (anonymous) if initialized
+      if (window.supabaseInitPromise) await window.supabaseInitPromise;
+
+      if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
+        const { data, error } = await window.supabaseClient
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data)) {
+          PRODUCTS = data.map(p => ({
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            price: p.price,
+            image: p.image || p.image_url || p.image_url || '',
+            description: p.description,
+            tag: p.tag || 'Available'
+          }));
+          console.log(`✅ Loaded ${PRODUCTS.length} products via Supabase client`);
+          renderStoreProducts();
+          applyStoreFilters();
+          return;
+        }
+        console.warn('⚠️ Supabase client returned error, falling back to backend');
+      }
+
       const BACKEND = window.BACKEND_URL || 'https://amoo-store-user-i18d.onrender.com';
       const response = await fetch(`${BACKEND}/api/products`);
       if (response.ok) {
         PRODUCTS = await response.json();
-        console.log(`✅ Loaded ${PRODUCTS.length} products from Supabase`);
+        console.log(`✅ Loaded ${PRODUCTS.length} products from backend`);
         // Re-render products after loading
         renderStoreProducts();
         applyStoreFilters();

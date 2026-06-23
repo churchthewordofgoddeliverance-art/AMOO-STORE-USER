@@ -170,9 +170,11 @@ async function initializeSupabase() {
     }
 
     console.log('📡 Fetching Supabase config from backend...');
-    
+    // Determine backend base: allow override via window.BACKEND_URL, otherwise use Render URL
+    const BACKEND = window.BACKEND_URL || 'https://amoo-store-user-i18d.onrender.com';
+
     // Fetch config from backend
-    const response = await fetch('/api/config', {
+    const response = await fetch(`${BACKEND}/api/config`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -249,7 +251,8 @@ async function loadProductsFromBackend() {
   if (document.querySelector('[data-page="shop"]')) {
     try {
       console.log('🛍️ Fetching products from Supabase...');
-      const response = await fetch('/api/products');
+      const BACKEND = window.BACKEND_URL || 'https://amoo-store-user-i18d.onrender.com';
+      const response = await fetch(`${BACKEND}/api/products`);
       if (response.ok) {
         PRODUCTS = await response.json();
         console.log(`✅ Loaded ${PRODUCTS.length} products from Supabase`);
@@ -1270,7 +1273,8 @@ Please confirm my order. I will proceed with bank transfer payment.`;
               total: order.total
             });
             
-            const response = await fetch('/api/orders', {
+            const BACKEND = window.BACKEND_URL || 'https://amoo-store-user-i18d.onrender.com';
+            const response = await fetch(`${BACKEND}/api/orders`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(order)

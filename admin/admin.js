@@ -1,13 +1,25 @@
-const ADMIN_API = '';
+const ADMIN_API = window.BACKEND_URL || 'https://amoo-store-user-i18d.onrender.com';
 let adminSession = null;
 
 // Initialize Supabase Client
 async function initializeSupabase() {
   try {
+    const base = ADMIN_API || window.location.origin || '';
+
     // Fetch config from backend
-    const response = await fetch(`${ADMIN_API}/api/config`);
-    if (response.ok) {
-      const { supabaseUrl, supabaseAnonKey } = await response.json();
+    const response = await fetch(`${base}/api/config`);
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`Failed to fetch config: ${response.status} ${response.statusText} - ${text.slice(0,200)}`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`Expected JSON from /api/config but received: ${text.slice(0,200)}`);
+    }
+
+    const { supabaseUrl, supabaseAnonKey } = await response.json();
       
       // Check if Supabase module has createClient method
       if (!window.supabase?.createClient) {

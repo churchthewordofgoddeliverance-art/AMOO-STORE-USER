@@ -233,7 +233,8 @@ async function syncOrderToSupabase(order) {
           total: order.total,
           status: order.status || 'pending',
           payment_method: order.paymentMethod || 'bank_transfer',
-          created_at: order.createdAt
+          created_at: order.createdAt,
+          delivery_date: order.deliveryDate || null
         }
       ], { onConflict: 'id' });
     
@@ -562,7 +563,8 @@ async function notifyAdminsOrderCreated(order) {
         order.items,
         order.total,
         order.subtotal || 0,
-        order.delivery || 0
+        order.delivery || 0,
+        order.deliveryDate
       );
     } catch (error) {
       console.error(`⚠️ Failed to notify admin ${adminEmail}:`, error.message);
@@ -851,7 +853,8 @@ app.post('/api/orders', async (req, res) => {
       newOrder.items,
       newOrder.total,
       newOrder.delivery || 0,
-      newOrder.subtotal || 0
+      newOrder.subtotal || 0,
+      newOrder.deliveryDate
     ).catch(error => console.error('Email sending error (non-critical):', error.message));
     
     // Send admin notification about new order
@@ -1670,17 +1673,50 @@ app.post('/api/rider/login', (req, res) => {
 // GET Rider Data
 app.get('/api/rider/:riderId', async (req, res) => {
   try {
+    const riderId = req.params.riderId;
+    
+    // Try Supabase first
     const { data: rider, error } = await supabase
       .from('riders')
       .select('*')
-      .eq('id', req.params.riderId)
+      .eq('id', riderId)
       .single();
 
-    if (error || !rider) {
-      return res.status(404).json({ error: 'Rider not found' });
+    if (rider) {
+      // Found in Supabase - normalize field names for frontend
+      return res.json({
+        id: rider.id,
+        name: rider.name,
+        email: rider.email,
+        phone: rider.phone,
+        vehicleType: rider.vehicle_type,
+        licensePlate: rider.license_plate,
+        bankName: rider.bank_name,
+        accountNumber: rider.account_number,
+        accountName: rider.account_name,
+        rating: rider.rating,
+        totalDeliveries: rider.total_deliveries,
+        monthDeliveries: rider.month_deliveries,
+        totalEarnings: rider.total_earnings,
+        monthEarnings: rider.month_earnings,
+        isOnline: rider.is_online,
+        joinDate: rider.join_date,
+        createdAt: rider.created_at
+      });
     }
 
-    res.json(rider);
+    // Fallback to JSON file if not in Supabase
+    const riders = readJSON(riderFilePath);
+    const jsonRider = riders.find(r => r.id === riderId);
+
+    if (jsonRider) {
+      console.log(`ℹ️ Rider found in JSON file: ${riderId}`);
+      return res.json(jsonRider);
+    }
+
+    // Not found anywhere
+    return res.status(404).json({ error: 'Rider not found' });
+
   } catch (error) {
     console.error('Error fetching rider:', error);
     res.status(500).json({ error: 'Failed to fetch rider data' });

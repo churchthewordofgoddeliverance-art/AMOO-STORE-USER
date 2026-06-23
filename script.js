@@ -1066,7 +1066,7 @@ if (document.body.dataset.page === 'checkout') {
 
     function renderPaymentPreview() {
       if (!paymentPreview) return;
-      paymentPreview.innerHTML = `<strong>Bank transfer selected</strong><div style="margin-top:6px">Account: <strong>Ademola Cloth House</strong><br/>Bank: <strong>FCMB</strong><br/>Account number: <strong>1234567890</strong></div>`;
+      paymentPreview.innerHTML = `<strong>Bank transfer selected</strong><div style="margin-top:6px">Account: <strong>oluniyi A A</strong><br/>Bank: <strong>FCMB</strong><br/>Account number: <strong>0275987178</strong></div>`;
       paymentPreview.setAttribute('aria-hidden', 'false');
     }
 
@@ -1118,9 +1118,9 @@ Please confirm my order. I will proceed with bank transfer payment.`;
         paymentInstructions.innerHTML = `
           <div class="bank-details">
             <strong>Bank transfer instructions</strong>
-            <div><strong>Account name:</strong> Ademola Cloth House</div>
+            <div><strong>Account name:</strong> oluniyi A A</div>
             <div><strong>Bank:</strong> FCMB</div>
-            <div><strong>Account number:</strong> 1234567890</div>
+            <div><strong>Account number:</strong> 0275987178</div>
             <div><strong>Branch code:</strong> 050</div>
             <div>Please keep your payment proof and contact us with a photo or reference after transfer.</div>
           </div>
@@ -1140,7 +1140,19 @@ Please confirm my order. I will proceed with bank transfer payment.`;
       const paymentConfirmedBtn = paymentInstructions?.querySelector('[data-payment-confirmed]');
       if (paymentConfirmedBtn) {
         paymentConfirmedBtn.addEventListener('click', () => {
+          // Calculate delivery date (7-9 business days from now)
+          function calculateDeliveryDate() {
+            const now = new Date();
+            const minDays = 7;
+            const maxDays = 9;
+            const daysToAdd = minDays + Math.floor(Math.random() * (maxDays - minDays + 1));
+            const deliveryDate = new Date(now);
+            deliveryDate.setDate(deliveryDate.getDate() + daysToAdd);
+            return deliveryDate.toISOString();
+          }
+
           // Create and save order
+          const deliveryDate = calculateDeliveryDate();
           const order = {
             id: Date.now(),
             customerId: accountProfile?.email || 'unknown',
@@ -1157,7 +1169,8 @@ Please confirm my order. I will proceed with bank transfer payment.`;
             total: cartSubtotalAmount() + (cartSubtotalAmount() > 0 ? 3500 : 0),
             status: 'pending',
             paymentMethod: 'bank_transfer',
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            deliveryDate: deliveryDate
           };
           
           // Save to localStorage

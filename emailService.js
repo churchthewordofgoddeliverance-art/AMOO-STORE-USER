@@ -93,7 +93,7 @@ function getUserRegistrationEmailTemplate(userName, userEmail) {
 }
 
 // Email template for order confirmation
-function getOrderConfirmationEmailTemplate(customerName, customerEmail, orderId, items, total, deliveryFee, subtotal) {
+function getOrderConfirmationEmailTemplate(customerName, customerEmail, orderId, items, total, deliveryFee, subtotal, deliveryDate) {
   const itemsHTML = items.map(item => `
     <tr style="border-bottom: 1px solid #eee;">
       <td style="padding: 10px; color: #666;">
@@ -104,6 +104,14 @@ function getOrderConfirmationEmailTemplate(customerName, customerEmail, orderId,
       <td style="padding: 10px; text-align: right; color: #666;">₦${(item.price * item.quantity).toLocaleString()}</td>
     </tr>
   `).join('');
+
+  // Format delivery date
+  const formattedDeliveryDate = deliveryDate ? new Date(deliveryDate).toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  }) : 'To be confirmed';
 
   return {
     subject: `📦 Order Confirmed! Order ID: ${orderId}`,
@@ -120,6 +128,7 @@ function getOrderConfirmationEmailTemplate(customerName, customerEmail, orderId,
             <p style="margin: 0; color: #333;"><strong>Order ID:</strong> ${orderId}</p>
             <p style="margin: 5px 0; color: #333;"><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</p>
             <p style="margin: 5px 0; color: #333;"><strong>Status:</strong> <span style="color: #27ae60; font-weight: bold;">Pending</span></p>
+            <p style="margin: 5px 0; color: #27ae60;"><strong>📦 Estimated Delivery Date:</strong> ${formattedDeliveryDate}</p>
           </div>
           
           <h3 style="color: #333; margin-top: 20px; margin-bottom: 10px;">Order Items:</h3>
@@ -360,9 +369,9 @@ async function sendUserRegistrationEmail(userName, userEmail) {
 }
 
 // Send order confirmation email
-async function sendOrderConfirmationEmail(customerName, customerEmail, orderId, items, total, deliveryFee, subtotal) {
+async function sendOrderConfirmationEmail(customerName, customerEmail, orderId, items, total, deliveryFee, subtotal, deliveryDate) {
   try {
-    const emailTemplate = getOrderConfirmationEmailTemplate(customerName, customerEmail, orderId, items, total, deliveryFee, subtotal);
+    const emailTemplate = getOrderConfirmationEmailTemplate(customerName, customerEmail, orderId, items, total, deliveryFee, subtotal, deliveryDate);
     const result = await sendEmailViaBrevo(
       customerEmail,
       emailTemplate.subject,
@@ -481,9 +490,17 @@ async function sendCustomerMessageEmail(senderName, senderEmail, subject, messag
 }
 
 // Send admin order notification
-async function sendAdminOrderNotification(recipientEmail, orderId, customerName, customerEmail, items, total, subtotal, deliveryFee) {
+async function sendAdminOrderNotification(recipientEmail, orderId, customerName, customerEmail, items, total, subtotal, deliveryFee, deliveryDate) {
   try {
     const itemsList = items.map(item => `<li>${item.productName} x${item.quantity} - ₦${(item.price * item.quantity).toLocaleString()}</li>`).join('');
+    
+    // Format delivery date
+    const formattedDeliveryDate = deliveryDate ? new Date(deliveryDate).toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    }) : 'To be confirmed';
     
     const html = `
       <div style="font-family: Arial, sans-serif; color: #333;">
@@ -496,6 +513,7 @@ async function sendAdminOrderNotification(recipientEmail, orderId, customerName,
         <p><strong>Order ID:</strong> #${orderId}</p>
         <p><strong>Customer:</strong> ${customerName}</p>
         <p><strong>Email:</strong> ${customerEmail}</p>
+        <p><strong>📦 Estimated Delivery Date:</strong> ${formattedDeliveryDate}</p>
         
         <h3>Items Ordered</h3>
         <ul>${itemsList}</ul>

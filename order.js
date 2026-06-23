@@ -127,6 +127,16 @@ function renderOrderCard(order) {
     day: 'numeric'
   });
 
+  // Format delivery date
+  const deliveryDate = order.deliveryDate || order.delivery_date;
+  const formattedDeliveryDate = deliveryDate 
+    ? new Date(deliveryDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    : 'Not available';
+
   return `
     <div class="order-card" data-order-id="${order.id}">
       <div class="order-header">
@@ -158,6 +168,11 @@ function renderOrderCard(order) {
         <div class="summary-row"><span>Subtotal</span><strong>₦${order.subtotal.toLocaleString()}</strong></div>
         <div class="summary-row"><span>Delivery</span><strong>₦${order.delivery.toLocaleString()}</strong></div>
         <div class="summary-row summary-total"><span>Total</span><strong>₦${order.total.toLocaleString()}</strong></div>
+      </div>
+
+      <div class="order-delivery-info" style="background-color: #f0f8ff; padding: 12px; border-radius: 5px; margin: 12px 0; border-left: 4px solid #4a90e2;">
+        <div><strong>📦 Estimated Delivery Date:</strong> ${formattedDeliveryDate}</div>
+        <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">Your order will be delivered within 7-9 business days from order confirmation.</p>
       </div>
 
       <div class="order-footer">

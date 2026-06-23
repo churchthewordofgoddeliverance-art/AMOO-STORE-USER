@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AMOO STORE - Admin Dashboard" />
+  <title>AMOO STORE | Admin Dashboard</title>
+  <link rel="stylesheet" href="/admin/admin.css" />
+</head>
+<body>
+  <div class="admin-container">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <span class="logo-icon">👔</span>
+          <div class="logo-text">
+            <strong>AMOO STORE</strong>
+            <small>Management</small>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#dashboard" class="nav-link active" data-page="dashboard">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Dashboard</span>
+        </a>
+        <a href="#products" class="nav-link" data-page="products">
+          <span class="nav-icon">👕</span>
+          <span class="nav-label">Products</span>
+        </a>
+        <a href="#customers" class="nav-link" data-page="customers">
+          <span class="nav-icon">👥</span>
+          <span class="nav-label">Customers</span>
+        </a>
+        <a href="#orders" class="nav-link" data-page="orders">
+          <span class="nav-icon">📦</span>
+          <span class="nav-label">Orders</span>
+        </a>
+        <a href="#inventory" class="nav-link" data-page="inventory">
+          <span class="nav-icon">📦</span>
+          <span class="nav-label">Inventory</span>
+        </a>
+        <a href="#analytics" class="nav-link" data-page="analytics">
+          <span class="nav-icon">📈</span>
+          <span class="nav-label">Analytics</span>
+        </a>
+        <a href="#messages" class="nav-link" data-page="messages">
+          <span class="nav-icon">💬</span>
+          <span class="nav-label">Messages</span>
+        </a>
+        <a href="#riders" class="nav-link" data-page="riders">
+          <span class="nav-icon">🏍️</span>
+          <span class="nav-label">Riders</span>
+        </a>
+        <a href="#settings" class="nav-link" data-page="settings">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="logout-btn" data-logout>
+          <span class="nav-icon">🚪</span>
+          <span class="nav-label">Logout</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+      <header class="admin-header">
+        <div class="header-left">
+          <h1 id="page-title">AMOO STORE Dashboard</h1>
+          <p id="page-subtitle">Welcome to AMOO STORE Management</p>
+        </div>
+        <div class="header-right">
+          <button class="menu-toggle" id="sidebar-toggle" aria-label="Open menu">
+            <span>☰</span>
+            <span>Menu</span>
+          </button>
+          <div class="admin-user" id="admin-user">
+            <span class="user-icon">👤</span>
+            <span class="user-name" id="admin-name">Admin</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="admin-content">
+        <!-- Dashboard Page -->
+        <section class="page-section active" data-page="dashboard">
+          <div class="dashboard-grid">
+            <article class="stat-card">
+              <div class="stat-icon">👕</div>
+              <div class="stat-content">
+                <p class="stat-label">Total Products</p>
+                <strong class="stat-value" id="total-products">8</strong>
+              </div>
+            </article>
+
+            <article class="stat-card">
+              <div class="stat-icon">👥</div>
+              <div class="stat-content">
+                <p class="stat-label">Total Customers</p>
+                <strong class="stat-value" id="total-customers">0</strong>
+              </div>
+            </article>
+
+            <article class="stat-card">
+              <div class="stat-icon">📦</div>
+              <div class="stat-content">
+                <p class="stat-label">Total Orders</p>
+                <strong class="stat-value" id="total-orders">0</strong>
+              </div>
+            </article>
+
+            <article class="stat-card">
+              <div class="stat-icon">💰</div>
+              <div class="stat-content">
+                <p class="stat-label">Revenue</p>
+                <strong class="stat-value" id="total-revenue">NGN 0</strong>
+              </div>
+            </article>
+          </div>
+
+          <div class="dashboard-section">
+            <h2>Recent Activity</h2>
+            <p id="recent-activity">No recent activity yet</p>
+          </div>
+        </section>
+
+        <!-- Products Page -->
+        <section class="page-section" data-page="products">
+          <div class="page-header">
+            <h2>Manage Products</h2>
+            <button class="btn btn-primary" id="add-product-btn">+ Add Product</button>
+          </div>
+          <div id="products-list" class="items-list">
+            <p>Loading products...</p>
+          </div>
+        </section>
+
+        <!-- Customers Page -->
+        <section class="page-section" data-page="customers">
+          <div class="page-header">
+            <h2>Customer Management</h2>
+          </div>
+          <div id="customers-list" class="items-list">
+            <p>Loading customers...</p>
+          </div>
+        </section>
+
+        <!-- Orders Page -->
+        <section class="page-section" data-page="orders">
+          <div class="page-header">
+            <div class="header-flex">
+              <h2>Orders</h2>
+              <button class="btn btn-small" onclick="loadOrders()" title="Refresh orders from Supabase">🔄 Refresh</button>
+            </div>
+          </div>
+          <div id="orders-list" class="items-list">
+            <p>No orders yet</p>
+          </div>
+        </section>
+
+        <!-- Inventory Page -->
+        <section class="page-section" data-page="inventory">
+          <div class="page-header">
+            <h2>Inventory Management</h2>
+          </div>
+          <div id="inventory-list" class="items-list">
+            <p>Loading inventory...</p>
+          </div>
+        </section>
+
+        <!-- Analytics Page -->
+        <section class="page-section" data-page="analytics">
+          <div class="page-header">
+            <h2>Analytics & Reports</h2>
+          </div>
+          <div class="analytics-container">
+            <p>Analytics features coming soon</p>
+          </div>
+        </section>
+
+        <!-- Messages/Customer Communication Page -->
+        <section class="page-section" data-page="messages">
+          <div class="page-header">
+            <h2>💬 Customer Messages</h2>
+          </div>
+          <div class="messages-grid">
+            <!-- Customers List -->
+            <div class="white-card">
+              <h3 class="card-heading">📧 Registered Customers</h3>
+              <div id="messages-customers-list" class="customers-list">
+                <p class="placeholder-text">Loading customers...</p>
+              </div>
+            </div>
+
+            <!-- Message Form -->
+            <div class="white-card">
+              <h3 class="card-heading">✉️ Send Message to All Customers</h3>
+              
+              <div id="message-success" class="message-success"></div>
+              <div id="message-error" class="message-error"></div>
+
+              <form id="send-message-form">
+                <div class="form-group-spaced">
+                  <label class="form-label">Subject</label>
+                  <input 
+                    type="text" 
+                    id="msg-subject" 
+                    placeholder="Message subject" 
+                    required
+                    class="form-input"
+                  />
+                </div>
+
+                <div class="form-group-spaced">
+                  <label class="form-label">Message</label>
+                  <textarea 
+                    id="msg-content" 
+                    placeholder="Type your message here..."
+                    rows="8"
+                    required
+                    class="form-textarea"
+                  ></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full-width">
+                  📤 Send Message to All Customers
+                </button>
+              </form>
+
+              <p class="helper-text">
+                This message will be sent to all registered customer emails.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Riders Management Page -->
+        <section class="page-section" data-page="riders">
+          <div class="page-header">
+            <div class="header-flex">
+              <h2>🏍️ Riders Management</h2>
+              <button class="btn btn-small" onclick="loadRiders()" title="Refresh riders from Supabase">🔄 Refresh</button>
+            </div>
+          </div>
+          <div id="riders-list" class="items-list">
+            <p>Loading riders...</p>
+          </div>
+        </section>
+
+        <!-- Settings Page -->
+        <section class="page-section" data-page="settings">
+          <div class="page-header">
+            <h2>Settings</h2>
+          </div>
+          <div class="settings-container">
+            <div class="settings-group">
+              <label>
+                <span>Store Name</span>
+                <input type="text" value="AMOO STORE" disabled />
+              </label>
+            </div>
+            <div class="settings-group">
+              <label>
+                <span>Admin Email</span>
+                <span id="admin-email" class="admin-email-display">Loading...</span>
+              </label>
+            </div>
+            <button class="btn btn-secondary">Save Settings</button>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- Login Modal -->
+  <div class="auth-modal" id="auth-modal" hidden>
+    <div class="auth-panel">
+      <div class="modal-header-center">
+        <h1 class="modal-title">AMOO STORE</h1>
+        <p class="modal-subtitle">Admin Portal</p>
+      </div>
+      <h2>Admin Login</h2>
+      <form id="admin-login-form">
+        <label>
+          <span>Email</span>
+          <input type="email" name="email" placeholder="admin@example.com" required />
+        </label>
+        <label>
+          <span>Password</span>
+          <input type="password" name="password" placeholder="Enter password" required />
+        </label>
+        <button type="submit" class="btn btn-primary btn-full-width">Login</button>
+        <button type="button" id="switch-to-register" class="btn btn-secondary btn-full-width btn-with-margin-top">Create Admin Account</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Register Modal -->
+  <div class="auth-modal" id="register-modal" hidden>
+    <div class="auth-panel">
+      <div class="modal-header-center">
+        <h1 class="modal-title">AMOO STORE</h1>
+        <p class="modal-subtitle">Admin Portal</p>
+      </div>
+      <h2>Create Admin Account</h2>
+      <form id="admin-register-form">
+        <label>
+          <span>Full Name</span>
+          <input type="text" name="name" placeholder="Enter your name" required />
+        </label>
+        <label>
+          <span>Email</span>
+          <input type="email" name="email" placeholder="admin@example.com" required />
+        </label>
+        <label>
+          <span>Password</span>
+          <input type="password" name="password" placeholder="Create a password" required />
+        </label>
+        <button type="submit" class="btn btn-primary btn-full-width">Register</button>
+        <button type="button" id="switch-to-login" class="btn btn-secondary btn-full-width btn-with-margin-top">Back to Login</button>
+      </form>
+      <p id="register-message" class="register-message"></p>
+    </div>
+  </div>
+
+  <!-- Product Edit Modal -->
+  <div class="admin-modal" id="product-modal" hidden>
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h3 id="product-modal-title">Edit Product</h3>
+        <button type="button" class="close-modal" id="product-modal-close">×</button>
+      </div>
+      <form id="product-form">
+        <label>
+          <span>Product Name</span>
+          <input type="text" id="product-name" name="name" placeholder="Product name" required />
+        </label>
+        <label>
+          <span>Category</span>
+          <input type="text" id="product-category" name="category" placeholder="men, women, couple, kids" required />
+        </label>
+        <label>
+          <span>Price (NGN)</span>
+          <input type="number" id="product-price" name="price" placeholder="Price" step="0.01" required />
+        </label>
+        <label>
+          <span>Tag</span>
+          <input type="text" id="product-tag" name="tag" placeholder="Best seller, New drop" required />
+        </label>
+        <label>
+          <span>Image URL</span>
+          <input type="url" id="product-image" name="image" placeholder="https://..." required />
+        </label>
+        <label>
+          <span>Description</span>
+          <textarea id="product-description" name="description" rows="4" placeholder="Product description" required></textarea>
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="product-modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Order Details Modal -->
+  <div class="admin-modal" id="order-details-modal" hidden>
+    <div class="modal-panel order-details-panel">
+      <div class="modal-header">
+        <h3 id="order-details-title">Order Details</h3>
+        <button type="button" class="close-modal" id="order-details-close">×</button>
+      </div>
+      <div class="order-details-content" id="order-details-content">
+        <!-- Content will be populated by JavaScript -->
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="order-details-close-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Supabase Client Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <script src="/admin/admin.js"></script>
+</body>
+</html>

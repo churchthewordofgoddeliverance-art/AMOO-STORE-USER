@@ -1184,27 +1184,68 @@ Please confirm my order. I will proceed with bank transfer payment.`;
             return deliveryDate.toISOString();
           }
 
+          // Validate before creating order
+          console.log('🔍 Order validation:', {
+            accountProfile: !!accountProfile,
+            accountProfileEmail: accountProfile?.email,
+            cartStateLength: cartState.length,
+            cartTotal: cartSubtotalAmount()
+          });
+
+          if (!accountProfile || !accountProfile.email) {
+            console.error('❌ Cannot place order: accountProfile missing or no email');
+            if (checkoutMessage) {
+              checkoutMessage.textContent = '❌ User profile error. Please log in again and try.';
+            }
+            return;
+          }
+
+          if (!cartState || cartState.length === 0) {
+            console.error('❌ Cannot place order: cart is empty');
+            if (checkoutMessage) {
+              checkoutMessage.textContent = '❌ Your cart is empty. Add products before checking out.';
+            }
+            return;
+          }
+
           // Create and save order
           const deliveryDate = calculateDeliveryDate();
+          const subtotal = cartSubtotalAmount();
+          const deliveryFee = subtotal > 0 ? 3500 : 0;
+          const total = subtotal + deliveryFee;
+          
           const order = {
             id: Date.now(),
-            customerId: accountProfile?.email || 'unknown',
-            customerName: accountProfile?.name || 'Customer',
-            customerEmail: accountProfile?.email || 'unknown@example.com',
+            customerId: accountProfile.email,
+            customerName: accountProfile.name || 'Customer',
+            customerEmail: accountProfile.email,
             phone: phone,
             address: String(formData.get('address') || '').trim(),
             items: cartState.map(item => {
               const product = getProduct(item.id);
-              return { productId: item.id, productName: product?.name || 'Unknown', quantity: item.quantity, price: product?.price || 0, productImage: product?.image || '' };
+              return { 
+                productId: item.id, 
+                productName: product?.name || 'Unknown', 
+                quantity: item.quantity, 
+                price: product?.price || 0, 
+                productImage: product?.image || '' 
+              };
             }),
-            subtotal: cartSubtotalAmount(),
-            delivery: cartSubtotalAmount() > 0 ? 3500 : 0,
-            total: cartSubtotalAmount() + (cartSubtotalAmount() > 0 ? 3500 : 0),
+            subtotal: subtotal,
+            delivery: deliveryFee,
+            total: total,
             status: 'pending',
             paymentMethod: 'bank_transfer',
             createdAt: new Date().toISOString(),
             deliveryDate: deliveryDate
           };
+          
+          console.log('📦 Order object created:', {
+            id: order.id,
+            customerEmail: order.customerEmail,
+            itemCount: order.items.length,
+            total: order.total
+          });
           
           // Save to localStorage
           let orders = [];
@@ -1216,9 +1257,19 @@ Please confirm my order. I will proceed with bank transfer payment.`;
           }
           orders.push(order);
           localStorage.setItem('ademola-cloth-house-orders', JSON.stringify(orders));
+          console.log('💾 Order saved to localStorage:', order.id);
 
           // Also save to backend
           try {
+            console.log('📤 Sending order to backend with:', {
+              id: order.id,
+              customerEmail: order.customerEmail,
+              customerName: order.customerName,
+              phone: order.phone,
+              itemCount: order.items?.length,
+              total: order.total
+            });
+            
             const response = await fetch('https://amoo-store-user-i18d.onrender.com/api/orders', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1227,14 +1278,15 @@ Please confirm my order. I will proceed with bank transfer payment.`;
 
             if (!response.ok) {
               const errorData = await response.json();
-              console.error('Order save error:', response.status, errorData);
+              console.error('❌ Order save error:', response.status, errorData);
               if (checkoutMessage) {
-                checkoutMessage.textContent = 'Unable to submit order to the server. Please try again later.';
+                checkoutMessage.textContent = `❌ Server error: ${errorData.error || 'Unknown error'}`;
               }
               return;
             }
 
             const data = await response.json();
+            console.log('✅ Backend response:', data);
             if (data?.success) {
               console.log('✅ Order saved to backend and Supabase:', order.id);
             } else {

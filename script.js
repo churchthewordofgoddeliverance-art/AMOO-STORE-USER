@@ -171,7 +171,7 @@ async function initializeSupabase() {
 
     console.log('📡 Fetching Supabase config from backend...');
     // Determine backend base: allow override via window.BACKEND_URL, otherwise use Render URL
-    const BACKEND = window.BACKEND_URL || 'https://amoo-store-user-i18d.onrender.com';
+    const BACKEND = getBackendUrl();
 
     // Fetch config from backend
     const response = await fetch(`${BACKEND}/api/config`, {
@@ -280,7 +280,7 @@ async function loadProductsFromBackend() {
         console.warn('⚠️ Supabase client returned error, falling back to backend');
       }
 
-      const BACKEND = window.BACKEND_URL || 'https://amoo-store-user-i18d.onrender.com';
+      const BACKEND = getBackendUrl();
       const response = await fetch(`${BACKEND}/api/products`);
       if (response.ok) {
         PRODUCTS = await response.json();
@@ -357,7 +357,7 @@ accountTabButtons.forEach((button) => {
 });
 
 accountForms.forEach((form) => {
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
 
     const formData = new FormData(form);
@@ -408,29 +408,65 @@ accountForms.forEach((form) => {
 
     const email = String(formData.get('email') || '').trim();
     const password = String(formData.get('password') || '').trim();
+    const BACKEND = getBackendUrl();
 
-    if (!accountProfile) {
+    if (!email || !password) {
       if (accountStatus) {
-        accountStatus.textContent = 'No registered account found yet. Please register first.';
+        accountStatus.textContent = 'Please enter both email and password.';
       }
-      setAccountTab('register');
       return;
     }
 
-    if (accountProfile.email === email && accountProfile.password === password) {
-      saveAccountSession(true);
-      if (accountStatus) {
-        accountStatus.textContent = `Logged in as ${accountProfile.name}. Redirecting...`;
-      }
-      updateAccountButton();
-      setTimeout(() => {
-        closeAccountModal();
-      }, 450);
-      return;
-    }
+    try {
+      const response = await fetch(`${BACKEND}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
 
-    if (accountStatus) {
-      accountStatus.textContent = 'Email or password is incorrect.';
+      const data = await response.json();
+      if (response.ok && data?.success) {
+        if (!accountProfile) {
+          accountProfile = { name: data.name || email.split('@')[0], email, password, address: '', phone: '', country: '', zip: '' };
+          localStorage.setItem(accountKey, JSON.stringify(accountProfile));
+        }
+        saveAccountSession(true);
+        updateAccountButton();
+        if (accountStatus) {
+          accountStatus.textContent = `Logged in as ${accountProfile.name}. Redirecting...`;
+        }
+        setTimeout(() => closeAccountModal(), 450);
+        return;
+      }
+
+      // Fallback to local profile login if backend does not authenticate
+      if (accountProfile && accountProfile.email === email && accountProfile.password === password) {
+        saveAccountSession(true);
+        updateAccountButton();
+        if (accountStatus) {
+          accountStatus.textContent = `Logged in as ${accountProfile.name}. Redirecting...`;
+        }
+        setTimeout(() => closeAccountModal(), 450);
+        return;
+      }
+
+      if (accountStatus) {
+        accountStatus.textContent = data?.error || 'Email or password is incorrect.';
+      }
+    } catch (loginError) {
+      console.error('Login network error:', loginError);
+      if (accountProfile && accountProfile.email === email && accountProfile.password === password) {
+        saveAccountSession(true);
+        updateAccountButton();
+        if (accountStatus) {
+          accountStatus.textContent = `Logged in as ${accountProfile.name}. Redirecting...`;
+        }
+        setTimeout(() => closeAccountModal(), 450);
+        return;
+      }
+      if (accountStatus) {
+        accountStatus.textContent = 'Unable to login right now. Please try again later.';
+      }
     }
   });
 });
@@ -553,27 +589,27 @@ function saveAccountProfile(profile) {
   accountProfile = profile;
   localStorage.setItem(accountKey, JSON.stringify(profile));
   saveAccountSession(true);
-  
-  // Save to backend as well
-  fetch('https://amoostore.onrender.com/api/register', {
+
+  const BACKEND = getBackendUrl();
+  fetch(`${BACKEND}/api/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(profile)
   })
-    .then(res => {
+    .then(async (res) => {
       if (!res.ok) {
-        console.error('Registration error:', res.status, res.statusText);
-        return res.json().then(err => {
-          console.error('Error details:', err);
-          throw new Error(`Server registration failed: ${res.status}`);
-        });
+        const err = await res.json().catch(() => ({ error: 'Unknown server response' }));
+        console.error('Registration error:', res.status, err);
+        return;
       }
       return res.json();
     })
-    .then(data => {
-      console.log('✅ Registration successful:', data);
+    .then((data) => {
+      if (data) {
+        console.log('✅ Registration successful:', data);
+      }
     })
-    .catch(err => {
+    .catch((err) => {
       console.error('Backend error:', err);
     });
 }
@@ -584,6 +620,10 @@ function loadAccountSession() {
   } catch {
     return false;
   }
+}
+
+function getBackendUrl() {
+  return window.BACKEND_URL || window.location.origin || 'https://amoo-store-user-i18d.onrender.com';
 }
 
 function saveAccountSession(isSignedIn) {
@@ -1137,7 +1177,7 @@ if (document.body.dataset.page === 'checkout') {
 
     renderPaymentPreview();
 
-    checkoutForm.addEventListener('submit', (event) => {
+    checkoutForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       const formData = new FormData(checkoutForm);
       let phone = String(formData.get('phone') || '').trim();
@@ -1302,7 +1342,7 @@ Please confirm my order. I will proceed with bank transfer payment.`;
               total: order.total
             });
             
-            const BACKEND = window.BACKEND_URL || 'https://amoo-store-user-i18d.onrender.com';
+            const BACKEND = getBackendUrl();
             const response = await fetch(`${BACKEND}/api/orders`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

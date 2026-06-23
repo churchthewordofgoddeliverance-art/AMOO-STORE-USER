@@ -1,7 +1,7 @@
 console.log('📜 script.js loaded');
 console.log('🔍 Initial window.supabase check:', {
   exists: !!window.supabase,
-  hasCreateClient: !!window.supabase?.createClient,
+  hasCreateClient: window.supabase && typeof window.supabase.createClient === 'function',
   keys: window.supabase ? Object.keys(window.supabase) : 'not available'
 });
 
@@ -164,7 +164,7 @@ async function initializeSupabase() {
     
     // Wait for library to be available
     const supabaseLib = await ensureSupabaseLibraryLoaded();
-    if (!supabaseLib?.createClient) {
+    if (!(supabaseLib && typeof supabaseLib.createClient === 'function')) {
       console.error('❌ Supabase library not available');
       return false;
     }
@@ -206,7 +206,7 @@ async function initializeSupabase() {
     window.supabase = {
       ...window.supabase,
       from: window.supabaseClient.from.bind(window.supabaseClient),
-      select: window.supabaseClient.select?.bind(window.supabaseClient)
+      select: typeof window.supabaseClient.select === 'function' ? window.supabaseClient.select.bind(window.supabaseClient) : undefined
     };
     
     console.log('✅ Supabase client initialized successfully');
@@ -371,7 +371,14 @@ accountForms.forEach((form) => {
       const zip = String(formData.get('zip') || '').trim();
       const password = String(formData.get('password') || '').trim();
 
-      if (!name || !email || !phone || !address || !zip || !password) {
+      if (!email) {
+        if (accountStatus) {
+          accountStatus.textContent = 'Please enter your email.';
+        }
+        return;
+      }
+
+      if (!name || !phone || !address || !zip || !password) {
         if (accountStatus) {
           accountStatus.textContent = 'Please fill in all registration fields.';
         }
@@ -384,89 +391,83 @@ accountForms.forEach((form) => {
         phone = countryCode + phone;
       }
 
-      // Save profile and treat registration as an immediate login
-      saveAccountProfile({ name, email, phone, address, country, zip, password });
-      updateAccountButton();
+      try {
+        await saveAccountProfile({ name, email, phone, address, country, zip, password });
+      } catch (error) {
+        console.error('Registration failed:', error);
+        return;
+      }
 
       if (accountStatus) {
         accountStatus.textContent = `Registered and signed in as ${name}. Redirecting...`;
       }
+      setTimeout(() => closeAccountModal(), 450);
+      return;
+    }
 
-      // Close modal and return user to main section
-      setTimeout(() => {
-        closeAccountModal();
-        const mainSection = document.getElementById('home');
-        if (mainSection) {
-          mainSection.scrollIntoView({ behavior: 'smooth' });
-        } else {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (form.dataset.accountForm === 'login') {
+      const email = String(formData.get('email') || '').trim();
+      const password = String(formData.get('password') || '').trim();
+
+      if (!email || !password) {
+        if (accountStatus) {
+          accountStatus.textContent = 'Please enter both email and password.';
         }
-      }, 650);
-
-      return;
-    }
-
-    const email = String(formData.get('email') || '').trim();
-    const password = String(formData.get('password') || '').trim();
-    const BACKEND = getBackendUrl();
-
-    if (!email || !password) {
-      if (accountStatus) {
-        accountStatus.textContent = 'Please enter both email and password.';
+        return;
       }
-      return;
-    }
 
-    try {
-      const response = await fetch(`${BACKEND}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
+      try {
+        const BACKEND = getBackendUrl();
+        const response = await fetch(`${BACKEND}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
 
-      const data = await response.json();
-      if (response.ok && data?.success) {
-        if (!accountProfile) {
-          accountProfile = { name: data.name || email.split('@')[0], email, password, address: '', phone: '', country: '', zip: '' };
+        const data = await response.json().catch(() => ({ error: 'Unable to parse server response' }));
+
+        if (response.ok && data && data.success) {
+          accountProfile = accountProfile || { name: data.name || email.split('@')[0], email, password, address: '', phone: '', country: '', zip: '' };
           localStorage.setItem(accountKey, JSON.stringify(accountProfile));
+          saveAccountSession(true);
+          updateAccountButton();
+          if (accountStatus) {
+            accountStatus.textContent = `Logged in as ${accountProfile.name}. Redirecting...`;
+          }
+          setTimeout(() => closeAccountModal(), 450);
+          return;
         }
-        saveAccountSession(true);
-        updateAccountButton();
+
+        if (accountProfile && accountProfile.email === email && accountProfile.password === password) {
+          saveAccountSession(true);
+          updateAccountButton();
+          if (accountStatus) {
+            accountStatus.textContent = `Logged in as ${accountProfile.name}. Redirecting...`;
+          }
+          setTimeout(() => closeAccountModal(), 450);
+          return;
+        }
+
         if (accountStatus) {
-          accountStatus.textContent = `Logged in as ${accountProfile.name}. Redirecting...`;
+          accountStatus.textContent = (data && data.error) || 'Email or password is incorrect.';
         }
-        setTimeout(() => closeAccountModal(), 450);
-        return;
+      } catch (loginError) {
+        console.error('Login network error:', loginError);
+        if (accountProfile && accountProfile.email === email && accountProfile.password === password) {
+          saveAccountSession(true);
+          updateAccountButton();
+          if (accountStatus) {
+            accountStatus.textContent = `Logged in as ${accountProfile.name}. Redirecting...`;
+          }
+          setTimeout(() => closeAccountModal(), 450);
+          return;
+        }
+        if (accountStatus) {
+          accountStatus.textContent = 'Unable to login right now. Please try again later.';
+        }
       }
 
-      // Fallback to local profile login if backend does not authenticate
-      if (accountProfile && accountProfile.email === email && accountProfile.password === password) {
-        saveAccountSession(true);
-        updateAccountButton();
-        if (accountStatus) {
-          accountStatus.textContent = `Logged in as ${accountProfile.name}. Redirecting...`;
-        }
-        setTimeout(() => closeAccountModal(), 450);
-        return;
-      }
-
-      if (accountStatus) {
-        accountStatus.textContent = data?.error || 'Email or password is incorrect.';
-      }
-    } catch (loginError) {
-      console.error('Login network error:', loginError);
-      if (accountProfile && accountProfile.email === email && accountProfile.password === password) {
-        saveAccountSession(true);
-        updateAccountButton();
-        if (accountStatus) {
-          accountStatus.textContent = `Logged in as ${accountProfile.name}. Redirecting...`;
-        }
-        setTimeout(() => closeAccountModal(), 450);
-        return;
-      }
-      if (accountStatus) {
-        accountStatus.textContent = 'Unable to login right now. Please try again later.';
-      }
+      return;
     }
   });
 });
@@ -585,33 +586,39 @@ function loadAccountProfile() {
   }
 }
 
-function saveAccountProfile(profile) {
-  accountProfile = profile;
-  localStorage.setItem(accountKey, JSON.stringify(profile));
-  saveAccountSession(true);
+async function saveAccountProfile(profile) {
+  if (accountStatus) {
+    accountStatus.textContent = 'Sending registration details...';
+  }
 
   const BACKEND = getBackendUrl();
-  fetch(`${BACKEND}/api/register`, {
+  const response = await fetch(`${BACKEND}/api/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(profile)
-  })
-    .then(async (res) => {
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Unknown server response' }));
-        console.error('Registration error:', res.status, err);
-        return;
-      }
-      return res.json();
-    })
-    .then((data) => {
-      if (data) {
-        console.log('✅ Registration successful:', data);
-      }
-    })
-    .catch((err) => {
-      console.error('Backend error:', err);
-    });
+  });
+
+  const data = await response.json().catch(() => ({ error: 'Unable to parse server response' }));
+
+  if (!response.ok) {
+    console.error('Registration error:', response.status, data);
+    if (accountStatus) {
+      accountStatus.textContent = data.error || 'Registration failed. Please check your details.';
+    }
+    throw new Error(data.error || 'Registration failed');
+  }
+
+  accountProfile = profile;
+  localStorage.setItem(accountKey, JSON.stringify(profile));
+  saveAccountSession(true);
+  updateAccountButton();
+
+  if (accountStatus) {
+    accountStatus.textContent = 'Registration successful. You are now signed in.';
+  }
+
+  console.log('✅ Registration successful:', data);
+  return data;
 }
 
 function loadAccountSession() {
@@ -623,7 +630,16 @@ function loadAccountSession() {
 }
 
 function getBackendUrl() {
-  return window.BACKEND_URL || window.location.origin || 'https://amoo-store-user-i18d.onrender.com';
+  if (window.BACKEND_URL) {
+    return window.BACKEND_URL;
+  }
+
+  const origin = window.location.origin;
+  if (origin && origin !== 'null') {
+    return origin;
+  }
+
+  return 'http://localhost:3000';
 }
 
 function saveAccountSession(isSignedIn) {

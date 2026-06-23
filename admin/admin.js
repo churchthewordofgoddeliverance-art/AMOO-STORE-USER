@@ -10,7 +10,7 @@ async function initializeSupabase() {
       const { supabaseUrl, supabaseAnonKey } = await response.json();
       
       // Check if Supabase module has createClient method
-      if (!window.supabase?.createClient) {
+      if (!(window.supabase && typeof window.supabase.createClient === 'function')) {
         console.warn('⏳ Waiting for Supabase library to load...');
         setTimeout(initializeSupabase, 500);
         return;
@@ -24,7 +24,7 @@ async function initializeSupabase() {
       window.supabase = {
         ...window.supabase,
         from: window.supabaseClient.from.bind(window.supabaseClient),
-        select: window.supabaseClient.select?.bind(window.supabaseClient)
+        select: typeof window.supabaseClient.select === 'function' ? window.supabaseClient.select.bind(window.supabaseClient) : undefined
       };
       
       console.log('✅ Supabase client initialized in admin');
@@ -730,22 +730,7 @@ async function updateOrderStatus(orderId, status) {
       const data = await response.json();
       console.log('✅ Order updated in Supabase:', orderId, '→', status);
       
-      // If status is "shipped", notify riders (order becomes available for pickup)
-      if (status === 'shipped') {
-        console.log('📢 Broadcasting order to available riders:', orderId);
-        // Trigger notification to all online riders
-        try {
-          await fetch(`${ADMIN_API}/api/notify-riders-order`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId })
-          }).catch(e => console.warn('Could not notify riders:', e.message));
-        } catch (error) {
-          console.warn('Rider notification failed (non-critical):', error);
-        }
-      }
-      
-      alert(`✅ Order #${orderId} updated to ${status.toUpperCase()}${status === 'shipped' ? '\n✓ Riders notified!' : ''}`);
+      alert(`✅ Order #${orderId} updated to ${status.toUpperCase()}`);
       loadOrders();
       loadDashboard();
     } else {
@@ -985,9 +970,9 @@ document.getElementById('send-message-form').addEventListener('submit', async (e
     return;
   }
 
-  const totalRecipients = (window.customerEmails?.length || 0) + (window.customerPhones?.length || 0);
+  const totalRecipients = (window.customerEmails ? window.customerEmails.length : 0) + (window.customerPhones ? window.customerPhones.length : 0);
   const confirmSend = confirm(
-    `Send this message to ${totalRecipients} customer(s)?\n\nEmails: ${window.customerEmails?.length || 0}\nPhone numbers: ${window.customerPhones?.length || 0}\n\nSubject: ${subject}`
+    `Send this message to ${totalRecipients} customer(s)?\n\nEmails: ${window.customerEmails ? window.customerEmails.length : 0}\nPhone numbers: ${window.customerPhones ? window.customerPhones.length : 0}\n\nSubject: ${subject}`
   );
 
   if (!confirmSend) return;
@@ -1005,7 +990,7 @@ document.getElementById('send-message-form').addEventListener('submit', async (e
         subject,
         message,
         senderName: 'Amoo Store',
-        senderEmail: adminSession?.email || 'amoostore5@gmail.com'
+        senderEmail: (adminSession && adminSession.email) || 'amoostore5@gmail.com'
       })
     });
 

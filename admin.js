@@ -10,7 +10,7 @@ async function initializeSupabase() {
       const { supabaseUrl, supabaseAnonKey } = await response.json();
       
       // Check if Supabase module has createClient method
-      if (!window.supabase?.createClient) {
+      if (!(window.supabase && typeof window.supabase.createClient === 'function')) {
         console.warn('⏳ Waiting for Supabase library to load...');
         setTimeout(initializeSupabase, 500);
         return;
@@ -24,7 +24,7 @@ async function initializeSupabase() {
       window.supabase = {
         ...window.supabase,
         from: window.supabaseClient.from.bind(window.supabaseClient),
-        select: window.supabaseClient.select?.bind(window.supabaseClient)
+        select: typeof window.supabaseClient.select === 'function' ? window.supabaseClient.select.bind(window.supabaseClient) : undefined
       };
       
       console.log('✅ Supabase client initialized in admin');
@@ -974,9 +974,9 @@ document.getElementById('send-message-form').addEventListener('submit', async (e
     return;
   }
 
-  const totalRecipients = (window.customerEmails?.length || 0) + (window.customerPhones?.length || 0);
+  const totalRecipients = (window.customerEmails ? window.customerEmails.length : 0) + (window.customerPhones ? window.customerPhones.length : 0);
   const confirmSend = confirm(
-    `Send this message to ${totalRecipients} customer(s)?\n\nEmails: ${window.customerEmails?.length || 0}\nPhone numbers: ${window.customerPhones?.length || 0}\n\nSubject: ${subject}`
+    `Send this message to ${totalRecipients} customer(s)?\n\nEmails: ${window.customerEmails ? window.customerEmails.length : 0}\nPhone numbers: ${window.customerPhones ? window.customerPhones.length : 0}\n\nSubject: ${subject}`
   );
 
   if (!confirmSend) return;
@@ -994,7 +994,7 @@ document.getElementById('send-message-form').addEventListener('submit', async (e
         subject,
         message,
         senderName: 'Amoo Store',
-        senderEmail: adminSession?.email || 'amoostore5@gmail.com'
+        senderEmail: (adminSession && adminSession.email) || 'amoostore5@gmail.com'
       })
     });
 
